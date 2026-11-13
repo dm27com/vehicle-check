@@ -229,7 +229,7 @@
     const hist = history.list().slice(0, 8);
     view.innerHTML = `<div class="home">
       <div class="logo-top"><img src="icons/lbh-logo.png" alt="LBH Group"></div>
-      <button class="bigbtn" data-go="check"><span class="ico">🚐</span><span><b>${t("newCheck")}</b><small>${t("newCheckSub")}</small></span></button>
+      <button class="bigbtn" data-go="check"><span class="ico"><img src="icons/vehicle.png" alt=""></span><span><b>${t("newCheck")}</b><small>${t("newCheckSub")}</small></span></button>
       <button class="bigbtn" data-go="service"><span class="ico">🔧</span><span><b>${t("newService")}</b><small>${t("newServiceSub")}</small></span></button>
       <div class="card pending" id="pendingBox"><div><div class="n">0</div><div class="lbl"></div></div><button class="btn sec">${t("sendNow")}</button></div>
       ${hist.length ? `<h2>${t("recent")}</h2><div class="card list">${hist.map(h => `

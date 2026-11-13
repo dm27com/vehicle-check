@@ -94,3 +94,5 @@ main.is-home{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
 .logo-foot img{width:100%;max-width:260px;height:auto;display:inline-block}
 .logo-top{text-align:center;padding:6px 10px 16px}
 .logo-top img{width:62%;max-width:240px;height:auto;display:inline-block}
+.bigbtn .ico{width:72px}
+.bigbtn .ico img{width:64px;height:44px;object-fit:contain;display:block}
