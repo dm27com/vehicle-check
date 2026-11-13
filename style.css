@@ -87,3 +87,8 @@ input.err,textarea.err,.item.err{border-color:var(--bad)!important;box-shadow:0 
 .svc .tick.x{background:var(--bad);border-color:var(--bad);color:#fff}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;z-index:20;max-width:90vw;text-align:center}
 .linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;font:inherit;font-size:14px;cursor:pointer;padding:8px}
+
+main.is-home{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+.home{display:flex;flex-direction:column;min-height:calc(100vh - 100px - env(safe-area-inset-top));min-height:calc(100dvh - 100px - env(safe-area-inset-top))}
+.logo-foot{margin-top:auto;padding:24px 10px 6px;text-align:center}
+.logo-foot img{width:100%;max-width:260px;height:auto;display:inline-block}

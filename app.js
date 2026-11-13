@@ -225,14 +225,16 @@
 
   // ---------- home ----------
   function renderHome() {
+    view.classList.add("is-home");
     const hist = history.list().slice(0, 8);
-    view.innerHTML = `
+    view.innerHTML = `<div class="home">
       <button class="bigbtn" data-go="check"><span class="ico">🚐</span><span><b>${t("newCheck")}</b><small>${t("newCheckSub")}</small></span></button>
       <button class="bigbtn" data-go="service"><span class="ico">🔧</span><span><b>${t("newService")}</b><small>${t("newServiceSub")}</small></span></button>
       <div class="card pending" id="pendingBox"><div><div class="n">0</div><div class="lbl"></div></div><button class="btn sec">${t("sendNow")}</button></div>
       ${hist.length ? `<h2>${t("recent")}</h2><div class="card list">${hist.map(h => `
         <div class="row"><span><b>${esc(h.label)}</b><br><small>${esc(h.date)} · ${h.type === "service" ? "🔧" : "🚐"}${h.defects ? ` · <span style="color:var(--bad)">${t("defectsFound", { n: h.defects })}</span>` : ""}</small></span>
-        <span class="tag ${h.status === "sent" ? "ok" : "q"}">${h.status === "sent" ? t("sent") : t("notSent")}</span></div>`).join("")}</div>` : ""}`;
+        <span class="tag ${h.status === "sent" ? "ok" : "q"}">${h.status === "sent" ? t("sent") : t("notSent")}</span></div>`).join("")}</div>` : ""}
+      <div class="logo-foot"><img src="icons/logo.png" alt="DM27"></div></div>`;
     $$("[data-go]").forEach(b => b.onclick = () => { location.hash = "#/" + b.dataset.go; });
     $("#pendingBox button").onclick = () => sync(true);
     refreshPending();
@@ -270,6 +272,7 @@
   }
 
   function renderCheck() {
+    view.classList.remove("is-home");
     const f = form;
     view.innerHTML = `
       ${vehicleDatalists()}
@@ -448,6 +451,7 @@
 
   // ---------- service record ----------
   function renderService() {
+    view.classList.remove("is-home");
     const f = form;
     view.innerHTML = `
       ${vehicleDatalists()}
@@ -529,6 +533,7 @@
     location.href = "https://wa.me/?text=" + encodeURIComponent(text);
   }
   function renderDone() {
+    view.classList.remove("is-home");
     const { rec, status } = lastDone, f = rec.form;
     const d = rec.type === "check" ? defectsOf(f) : [];
     view.innerHTML = `<div class="done">
