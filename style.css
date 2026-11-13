@@ -92,3 +92,5 @@ main.is-home{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
 .home{display:flex;flex-direction:column;min-height:calc(100vh - 100px - env(safe-area-inset-top));min-height:calc(100dvh - 100px - env(safe-area-inset-top))}
 .logo-foot{margin-top:auto;padding:24px 10px 6px;text-align:center}
 .logo-foot img{width:100%;max-width:260px;height:auto;display:inline-block}
+.logo-top{text-align:center;padding:6px 10px 16px}
+.logo-top img{width:62%;max-width:240px;height:auto;display:inline-block}

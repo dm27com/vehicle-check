@@ -1,9 +1,9 @@
 // Offline support: caches the app so it opens with no signal.
 // When you change any app file, bump CACHE so phones pick up the new version.
-const CACHE = "vehicle-check-v1.0.2";
+const CACHE = "vehicle-check-v1.0.3";
 const FILES = [
   "./", "./index.html", "./style.css", "./app.js", "./data.js", "./config.js",
-  "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-180.png", "./icons/logo.png"
+  "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-180.png", "./icons/logo.png", "./icons/lbh-logo.png"
 ];
 
 self.addEventListener("install", e => {
