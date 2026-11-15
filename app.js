@@ -285,8 +285,8 @@
       </div>
       <h2>${t("details")}</h2>
       <div class="card">
-        <div class="two">${field("matricula", t("matricula"), "text", 'list="dl-mat" autocapitalize="characters" autocomplete="off"')}${field("km", t("km"), "number", 'inputmode="numeric" min="0"')}</div>
-        ${field("vehicle", t("vehicle"), "text", 'list="dl-veh" autocomplete="off"')}
+        ${regPicker()}
+        <div class="two">${field("km", t("km"), "number", 'inputmode="numeric" min="0"')}${field("vehicle", t("vehicle"), "text", 'list="dl-veh" autocomplete="off"')}</div>
         <div class="two">${field("date", t("date"), "date")}${field("department", t("department"), "text", 'list="dl-depts" autocomplete="off"')}</div>
         ${field("inspector1", t("inspector1"), "text", 'list="dl-names" autocapitalize="characters" autocomplete="off"')}
         ${field("inspector2", t("inspector2"), "text", 'list="dl-names" autocapitalize="characters" autocomplete="off"')}
@@ -365,12 +365,71 @@
     $("#ptext").textContent = t("progress", { n, t: ITEMS.length });
   }
 
+  // ---------- fleet drop-down (from the Service Schedule workbook, fleet.js) ----------
+  const FLEET = window.FLEET || [];
+  const normReg = s => String(s || "").toUpperCase().replace(/\s+/g, "");
+  const fleetFind = m => m ? FLEET.find(v => normReg(v.reg) === normReg(m)) : null;
+  const fmtKm = n => Number(n).toLocaleString(lang === "pt" ? "pt-PT" : "en-GB");
+  function regPicker() {
+    const v = fleetFind(form.matricula), other = !!(form.regOther || (form.matricula && !v));
+    const sites = [...new Set(FLEET.map(x => x.site))];
+    return `<label class="f"><span>${t("matricula")}</span>
+      <select id="regSel">
+        <option value="">${t("selectVehicle")}</option>
+        ${sites.map(st => `<optgroup label="${esc(st)}">${FLEET.filter(x => x.site === st).map(x =>
+          `<option value="${esc(x.reg)}" ${!other && v && v.reg === x.reg ? "selected" : ""}>${esc(x.reg)} – ${esc(x.make)}</option>`).join("")}</optgroup>`).join("")}
+        <option value="__other" ${other ? "selected" : ""}>✏️ ${t("otherVehicle")}</option>
+      </select>
+      <input name="matricula" class="${other ? "" : "hidden"}" style="margin-top:8px" placeholder="${t("enterReg")}" value="${esc(other ? form.matricula : "")}" list="dl-mat" autocapitalize="characters" autocomplete="off">
+      <div class="help" id="fleetInfo"></div></label>`;
+  }
+  function bindReg() {
+    const sel = $("#regSel"), inp = $('[name="matricula"]'); if (!sel) return;
+    sel.onchange = () => {
+      sel.classList.remove("err");
+      if (sel.value === "__other") {
+        form.regOther = true; form.matricula = ""; inp.value = ""; inp.classList.remove("hidden");
+        if (form._auto) Object.keys(form._auto).forEach(k => { if (k in form && form[k] === form._auto[k]) { form[k] = ""; const i = $(`[name="${k}"]`); if (i) i.value = ""; } });
+        form._auto = null; inp.focus();
+      } else {
+        form.regOther = false; inp.classList.add("hidden");
+        form.matricula = sel.value; applyFleet(fleetFind(sel.value));
+      }
+      fleetInfo(); kmWarn(); saveDraft();
+    };
+    fleetInfo(); kmWarn();
+  }
+  function applyFleet(v) {
+    if (!v) return;
+    const auto = { vehicle: v.make, department: v.site, nextService: v.next ? fmtKm(v.next) + " km" : "" };
+    Object.keys(auto).forEach(k => {
+      if (!(k in form)) return;
+      if (k !== "department" || !form[k] || (form._auto && form[k] === form._auto[k])) { form[k] = auto[k]; const i = $(`[name="${k}"]`); if (i) { i.value = auto[k]; i.classList.remove("err"); } }
+    });
+    form._auto = auto;
+    fillFromVehicle(v.reg); // expiry dates remembered on this phone from earlier checks
+  }
+  function fleetInfo() {
+    const el = $("#fleetInfo"); if (!el) return;
+    const v = !form.regOther && fleetFind(form.matricula);
+    el.textContent = v ? [v.site, v.interval ? t("serviceEvery") + " " + fmtKm(v.interval) + " km" : "", v.next ? t("nextAt") + " " + fmtKm(v.next) + " km" : ""].filter(Boolean).join(" · ") : "";
+  }
+  function kmWarn() {
+    const el = $('[data-warn="km"]'); if (!el || form.type !== "check") return;
+    const v = fleetFind(form.matricula), km = Number(form.km);
+    el.className = "exp-warn"; el.textContent = "";
+    if (!v || !v.next || !km) return;
+    if (km >= v.next) { el.className = "exp-warn bad"; el.textContent = "⚠ " + t("svcOverdue", { km: fmtKm(v.next) }); }
+    else if (v.next - km <= 500) { el.className = "exp-warn soon"; el.textContent = "⚠ " + t("svcSoon", { n: fmtKm(v.next - km) }); }
+  }
+
   // fields, photos, segments – shared by both forms
   function bindCommon() {
     $$("input[name], textarea[name]").forEach(inp => {
       inp.oninput = inp.onchange = () => {
         form[inp.name] = inp.value; inp.classList.remove("err");
-        if (inp.name === "matricula") fillFromVehicle(inp.value);
+        if (inp.name === "matricula") { fillFromVehicle(inp.value); fleetInfo(); kmWarn(); }
+        if (inp.name === "km") kmWarn();
         if (["inspExp", "licExp", "insExp"].includes(inp.name)) showExpiry(inp.name);
         if (inp.name === "date") { ["inspExp", "licExp", "insExp", "ext"].forEach(showExpiry); }
         saveDraft();
@@ -379,6 +438,7 @@
     $$("[data-seg]").forEach(seg => $$("button", seg).forEach(b => b.onclick = () => {
       form[seg.dataset.seg] = b.dataset.val; $$("button", seg).forEach(x => x.classList.toggle("on", x === b)); saveDraft();
     }));
+    bindReg();
     const cb = $("#clearBtn");
     if (cb) cb.onclick = async () => { if (!confirm(t("discard"))) return; await DB.del("drafts", form.type); form = null; openForm(location.hash.includes("service") ? "service" : "check"); scrollTo(0, 0); };
   }
@@ -417,7 +477,7 @@
   }
   function req(names, errs, labels) {
     let first = null;
-    names.forEach(n => { if (!String(form[n] || "").trim()) { const i = $(`[name="${n}"]`); i && i.classList.add("err"); first = first || i; errs.push(labels[n]); } });
+    names.forEach(n => { if (!String(form[n] || "").trim()) { const i = n === "matricula" && !form.regOther && $("#regSel") ? $("#regSel") : $(`[name="${n}"]`); i && i.classList.add("err"); first = first || i; errs.push(labels[n]); } });
     return first;
   }
   async function submitCheck() {
@@ -459,8 +519,8 @@
       <div id="errBox"></div>
       <h2>${t("details")}</h2>
       <div class="card">
-        <div class="two">${field("matricula", t("matricula"), "text", 'list="dl-mat" autocapitalize="characters" autocomplete="off"')}${field("km", t("km"), "number", 'inputmode="numeric" min="0"')}</div>
-        ${field("vehicle", t("vehicle"), "text", 'list="dl-veh" autocomplete="off"')}
+        ${regPicker()}
+        <div class="two">${field("km", t("km"), "number", 'inputmode="numeric" min="0"')}${field("vehicle", t("vehicle"), "text", 'list="dl-veh" autocomplete="off"')}</div>
         <div class="two">${field("date", t("date"), "date")}${field("workshop", t("workshop"))}</div>
         ${field("enteredBy", t("yourName"), "text", 'list="dl-names" autocapitalize="characters" autocomplete="off"')}
       </div>

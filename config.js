@@ -3,5 +3,5 @@
 window.APP_CONFIG = {
   ENDPOINT: "https://script.google.com/macros/s/AKfycbwnbdXXuW18xFbWww8sfdHGudK783FecMIt4a4Dg4fua1CYZpxRE_ugP_krOxLV5HNcCg/exec",
   APP_KEY: "lbh-vehicles-2026",
-  VERSION: "1.0.0"
+  VERSION: "1.1.0"
 };
