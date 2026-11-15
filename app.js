@@ -133,7 +133,7 @@
   }
   function warningsOf(f) {
     const w = [];
-    [["inspExp", "Inspection"], ["licExp", "Licence"], ["insExp", "Insurance"]].forEach(([k, n]) => {
+    [["inspExp", "Inspection"], ["licExp", "Imposto"], ["insExp", "Insurance"]].forEach(([k, n]) => {
       const s = expiryState(f[k], f.date); if (s) w.push(n + (s === "expired" ? " EXPIRED " : " expires ") + f[k]);
     });
     const ex = f.items.extinguisher && f.items.extinguisher.expiry, s = expiryState(ex, f.date);
@@ -150,7 +150,7 @@
         "Submission ID": rec.id, "Check type": f.checkType === "preservice" ? "Before service" : "Weekly",
         "Date": f.date, "Department": f.department, "Vehicle": f.vehicle, "Matrícula": (f.matricula || "").toUpperCase(),
         "Km": f.km ? Number(f.km) : "", "Next service due": f.nextService,
-        "Inspection expires": f.inspExp, "Licence expires": f.licExp, "Insurance expires": f.insExp,
+        "Inspection expires": f.inspExp, "Imposto expires": f.licExp, "Insurance expires": f.insExp,
         "Inspector": f.inspector1, "Second person (lights)": f.inspector2, "Regular driver consulted": f.regularDriver,
         "Result": defects.length ? "PROBLEMS" : "ALL OK", "Problems": defects.length,
         "Warnings": warnings.join("; ")
