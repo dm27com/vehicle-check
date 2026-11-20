@@ -1,6 +1,6 @@
 // Offline support: caches the app so it opens with no signal.
 // When you change any app file, bump CACHE so phones pick up the new version.
-const CACHE = "vehicle-check-v1.3.0";
+const CACHE = "vehicle-check-v1.3.1";
 const FILES = [
   "./", "./index.html", "./style.css", "./app.js", "./data.js", "./fleet.js", "./config.js",
   "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-180.png", "./icons/logo.png", "./icons/lbh-logo.png", "./icons/vehicle.png",
@@ -8,7 +8,8 @@ const FILES = [
 ];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: "reload" so a new version never stores stale copies from the browser's HTTP cache
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", e => {
@@ -26,7 +27,7 @@ self.addEventListener("fetch", e => {
   // Network first (so updates arrive), but fall back to the cache after 4 s
   // or when offline, so a weak signal never leaves the driver staring at a blank screen.
   const fromCache = () => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match("./index.html"));
-  const network = fetch(req).then(res => {
+  const network = fetch(req, { cache: "no-cache" }).then(res => {   // always revalidate with GitHub when online
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
     return res;
   });
