@@ -53,7 +53,8 @@
   // ---------- history (small list, no photos) ----------
   const history = {
     list: () => ls.get("history", []),
-    add(h) { const l = history.list(); l.unshift(h); ls.set("history", l.slice(0, 30)); },
+    add(h) { const l = history.list().filter(x => x.id !== h.id); l.unshift(h); ls.set("history", l.slice(0, 30)); },
+    get: id => history.list().find(x => x.id === id),
     mark(id, status) { const l = history.list(); const h = l.find(x => x.id === id); if (h) { h.status = status; ls.set("history", l); } }
   };
   // remembered names / vehicles for quick filling
@@ -143,7 +144,7 @@
   const b64 = dataUrl => dataUrl.split(",")[1];
   function buildPayload(rec) {
     const f = rec.form, photos = [];
-    const base = { key: CFG.APP_KEY, id: rec.id, kind: rec.type, version: CFG.VERSION };
+    const base = { key: CFG.APP_KEY, id: rec.id, kind: rec.type, version: CFG.VERSION, edit: !!rec.edit };
     if (rec.type === "check") {
       const defects = defectsOf(f), warnings = warningsOf(f);
       const row = {
@@ -205,6 +206,23 @@
     `<div class="photos">${(arr || []).map((p, i) => `<div class="ph"><img src="${p}" alt=""><button type="button" data-delphoto="${key}" data-i="${i}">✕</button></div>`).join("")}
      <label class="addph">📷 ${t("addPhoto")}<input type="file" accept="image/*" capture="environment" data-photo="${key}"></label></div>`;
 
+  // ---------- editing a sent check ----------
+  const EDIT_HOURS = Number(CFG.EDIT_HOURS || 24);
+  const canEdit = h => !!(h && h.form && Date.now() - new Date(h.firstSent || h.created || 0).getTime() < EDIT_HOURS * 3600e3);
+  function stripPhotos(f) {
+    const c = JSON.parse(JSON.stringify(f)); let n = (c.remarkPhotos || []).length; c.remarkPhotos = [];
+    if (c.items) Object.values(c.items).forEach(a => { n += (a.photos || []).length; a.photos = []; });
+    return { form: c, photos: n };
+  }
+  async function startEdit(id) {
+    const h = history.get(id); if (!canEdit(h)) return;
+    const queued = await DB.get("queue", id); // not sent yet: its photos are still only on this phone, so edit the full copy
+    form = JSON.parse(JSON.stringify(queued ? queued.form : h.form));
+    form.editOf = id; form.prevPhotos = queued ? 0 : (h.photos || 0); delete form._auto;
+    location.hash = "#/" + h.type;
+  }
+  const editBanner = () => form && form.editOf ? `<div class="editbar">✏️ ${t("editing")}${form.prevPhotos ? `<br><small>📷 ${t("photosKept", { n: form.prevPhotos })}</small>` : ""}</div>` : "";
+
   // ---------- routing ----------
   let form = null, lastDone = null;
   function route() {
@@ -234,10 +252,12 @@
       <div class="card pending" id="pendingBox"><div><div class="n">0</div><div class="lbl"></div></div><button class="btn sec">${t("sendNow")}</button></div>
       ${hist.length ? `<h2>${t("recent")}</h2><div class="card list">${hist.map(h => `
         <div class="row"><span><b>${esc(h.label)}</b><br><small>${esc(h.date)} · ${h.type === "service" ? "🔧" : "🚐"}${h.defects ? ` · <span style="color:var(--bad)">${t("defectsFound", { n: h.defects })}</span>` : ""}</small></span>
-        <span class="tag ${h.status === "sent" ? "ok" : "q"}">${h.status === "sent" ? t("sent") : t("notSent")}</span></div>`).join("")}</div>` : ""}
+        <span class="rowend"><span class="tag ${h.status === "sent" ? "ok" : "q"}">${h.status === "sent" ? t("sent") : t("notSent")}</span>${h.edits ? `<small class="edited">${t("edited")}</small>` : ""}
+        ${canEdit(h) ? `<button class="editbtn" data-edit="${esc(h.id)}">✏️ ${t("edit")}</button>` : ""}</span></div>`).join("")}</div>` : ""}
       <div class="logo-foot"><img src="icons/logo.png" alt="DM27"></div></div>`;
     $$("[data-go]").forEach(b => b.onclick = () => { location.hash = "#/" + b.dataset.go; });
     $("#pendingBox button").onclick = () => sync(true);
+    $$("[data-edit]").forEach(b => b.onclick = () => startEdit(b.dataset.edit));
     refreshPending();
   }
 
@@ -253,13 +273,15 @@
   }
   async function openForm(type) {
     if (!form || form.type !== type) {
-      const d = await DB.get("drafts", type);
+      const ed = await DB.get("drafts", "edit");
+      const d = ed && ed.type === type ? ed : await DB.get("drafts", type);
       if (d) { form = d; setTimeout(() => { if (location.hash === "#/" + type) toast(t("resume")); }, 300); } else form = type === "check" ? blankCheck() : blankService();
     }
     type === "check" ? renderCheck() : renderService();
   }
   let saveT;
-  const saveDraft = () => { clearTimeout(saveT); saveT = setTimeout(() => form && DB.put("drafts", form, form.type), 500); };
+  const draftKey = f => f.editOf ? "edit" : f.type;
+  const saveDraft = () => { clearTimeout(saveT); saveT = setTimeout(() => form && DB.put("drafts", form, draftKey(form)), 500); };
 
   const field = (k, label, type = "text", extra = "") =>
     `<label class="f"><span>${label}</span><input name="${k}" type="${type}" value="${esc(form[k])}" ${extra}><div class="exp-warn" data-warn="${k}"></div></label>`;
@@ -278,6 +300,7 @@
     view.innerHTML = `
       ${vehicleDatalists()}
       <div id="errBox"></div>
+      ${editBanner()}
       <h2>${t("checkType")}</h2>
       <div class="seg" data-seg="checkType">
         <button type="button" data-val="weekly" class="${f.checkType === "weekly" ? "on" : ""}">${t("weekly")}</button>
@@ -301,8 +324,8 @@
       <h2>${t("remarks")}</h2>
       <div class="card"><textarea name="remarks" rows="4" placeholder="${t("remarksPh")}">${esc(f.remarks)}</textarea>${photoStrip(f.remarkPhotos, "remarks")}</div>
       <div class="stop">⛔ ${t("stopWork")}</div>
-      <div style="text-align:center"><button class="linkbtn" id="clearBtn">${t("clear")}</button></div>
-      <div class="footer"><button class="btn" id="submitBtn">${t("submit")}</button></div>`;
+      <div style="text-align:center"><button class="linkbtn" id="clearBtn">${form.editOf ? t("cancelEdit") : t("clear")}</button></div>
+      <div class="footer"><button class="btn" id="submitBtn">${form.editOf ? t("saveChanges") : t("submit")}</button></div>`;
     bindCommon();
     $$("[data-item]").forEach(el => bindItem(el));
     $("#submitBtn").onclick = submitCheck;
@@ -440,7 +463,10 @@
     }));
     bindReg();
     const cb = $("#clearBtn");
-    if (cb) cb.onclick = async () => { if (!confirm(t("discard"))) return; await DB.del("drafts", form.type); form = null; openForm(location.hash.includes("service") ? "service" : "check"); scrollTo(0, 0); };
+    if (cb) cb.onclick = async () => {
+      if (form.editOf) { if (!confirm(t("cancelEditQ"))) return; await DB.del("drafts", "edit"); form = null; location.hash = "#/"; return; }
+      if (!confirm(t("discard"))) return; await DB.del("drafts", form.type); form = null; openForm(location.hash.includes("service") ? "service" : "check"); scrollTo(0, 0);
+    };
   }
   function fillFromVehicle(m) {
     const v = prefs.get().vehicles[(m || "").trim().toUpperCase()]; if (!v) return;
@@ -497,14 +523,18 @@
     await finish();
   }
   async function finish() {
-    const f = form, rec = { id: uid(), type: f.type, created: new Date().toISOString(), lang, form: f };
+    const f = form, editOf = f.editOf, prev = editOf ? history.get(editOf) : null;
+    const rec = { id: editOf || uid(), type: f.type, created: new Date().toISOString(), lang, form: f, edit: !!editOf };
     $("#submitBtn").disabled = true;
     await DB.put("queue", rec);
-    await DB.del("drafts", f.type);
+    await DB.del("drafts", draftKey(f));
     if (f.type === "check") prefs.learn(f);
     if (f.inspector1 || f.enteredBy) ls.set("me", f.inspector1 || f.enteredBy);
     const defects = f.type === "check" ? defectsOf(f).length : 0;
-    history.add({ id: rec.id, type: f.type, label: [f.vehicle, (f.matricula || "").toUpperCase()].filter(Boolean).join(" · "), date: f.date, defects, status: "queued" });
+    const sp = stripPhotos(f); delete sp.form.editOf; delete sp.form.prevPhotos;
+    history.add({ id: rec.id, type: f.type, label: [f.vehicle, (f.matricula || "").toUpperCase()].filter(Boolean).join(" · "), date: f.date, defects, status: "queued",
+      firstSent: prev ? (prev.firstSent || prev.created) : rec.created, created: rec.created, edits: prev ? (prev.edits || 0) + 1 : 0,
+      form: sp.form, photos: (prev && prev.status === "sent" ? prev.photos || 0 : 0) + sp.photos });
     lastDone = { rec, status: "queued" }; form = null;
     location.hash = "#/done";
     if (navigator.onLine) { const ok = await sync(); if (lastDone && lastDone.rec.id === rec.id && ok && !(await DB.get("queue", rec.id))) { lastDone.status = "sent"; if (location.hash === "#/done") renderDone(); } }
@@ -517,6 +547,7 @@
     view.innerHTML = `
       ${vehicleDatalists()}
       <div id="errBox"></div>
+      ${editBanner()}
       <h2>${t("details")}</h2>
       <div class="card">
         ${regPicker()}
@@ -533,8 +564,8 @@
       </div>
       <h2>${t("remarks")}</h2>
       <div class="card"><textarea name="remarks" rows="4" placeholder="${t("remarksPh")}">${esc(f.remarks)}</textarea>${photoStrip(f.remarkPhotos, "remarks")}</div>
-      <div style="text-align:center"><button class="linkbtn" id="clearBtn">${t("clear")}</button></div>
-      <div class="footer"><button class="btn" id="submitBtn">${t("submitService")}</button></div>`;
+      <div style="text-align:center"><button class="linkbtn" id="clearBtn">${form.editOf ? t("cancelEdit") : t("clear")}</button></div>
+      <div class="footer"><button class="btn" id="submitBtn">${form.editOf ? t("saveChanges") : t("submitService")}</button></div>`;
     bindCommon();
     $$("[data-part]").forEach(row => {
       const id = row.dataset.part, a = () => (f.parts[id] = f.parts[id] || {});
@@ -599,7 +630,7 @@
     const d = rec.type === "check" ? defectsOf(f) : [];
     view.innerHTML = `<div class="done">
       <div class="big">${d.length ? "⚠️" : "✅"}</div>
-      <h1>${t("savedTitle")}</h1>
+      <h1>${rec.edit ? t("editSavedTitle") : t("savedTitle")}</h1>
       <p style="color:var(--muted)">${status === "sent" ? t("savedSent") : t("savedQueued")}</p>
       <div class="card summary">
         <b>${esc(f.vehicle || "")} · ${esc((f.matricula || "").toUpperCase())}</b><br><small>${esc(f.date)} · ${esc(f.km)} km</small>

@@ -19,8 +19,11 @@ const PHOTO_FOLDER_NAME = "Vehicle Check Photos";
 const SHEETS = {
   Checklists: { color: "#0b3d5c" },
   Defects: { color: "#c62828" },
-  "Service Records": { color: "#1e8e4e" }
+  "Service Records": { color: "#1e8e4e" },
+  "Edit Log": { color: "#5f6368" }
 };
+const EDITLOG_HEADERS = ["Edited on", "Submission ID", "Sheet", "Vehicle", "Matrícula", "Edit no.", "Changes", "Photos added"];
+const REMOVED_BY_EDIT = "Removed by driver edit";
 const DEFECT_HEADERS = ["Received", "Submission ID", "Date", "Vehicle", "Matrícula", "Km", "Item", "Problem",
   "Photo", "Reported by", "Status", "Action taken", "Closed on"];
 
@@ -40,40 +43,55 @@ function doPost(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sh = getSheet_(ss, body.sheet);
+    const existing = findRow_(sh, body.id);
     // Already received? (the phone retries if the signal drops mid-send)
-    if (alreadyHave_(sh, body.id)) return json_({ ok: true, duplicate: true });
+    if (existing && !body.edit) return json_({ ok: true, duplicate: true });
 
     const now = new Date();
-    const row = Object.assign({ "Received": now }, body.row);
+    let old = null;
+    if (existing) {
+      old = readRow_(sh, existing);
+      const sent = new Date(body.row["Submitted on phone"]);
+      if (old["Submitted on phone"] instanceof Date && !isNaN(sent) && old["Submitted on phone"].getTime() === sent.getTime())
+        return json_({ ok: true, duplicate: true }); // this exact edit was already saved
+    }
+    const row = Object.assign({ "Received": old ? old["Received"] : now }, body.row);
 
-    // Photos → Drive
+    // Photos → Drive (an edit adds to the same folder as the original check)
     const photos = body.photos || [];
     const byRef = {};
-    let folder = null;
+    let folder = old ? findPhotoFolder_(body.id) : null;
     if (photos.length) {
-      folder = photoFolder_(body.row["Matrícula"], body.row["Date"], body.id);
+      folder = folder || photoFolder_(body.row["Matrícula"], body.row["Date"], body.id);
       photos.forEach(function (p) {
         const blob = Utilities.newBlob(Utilities.base64Decode(p.data), p.mime || "image/jpeg",
           (body.row["Date"] || "") + " " + (body.row["Matrícula"] || "") + " " + p.name + ".jpg");
         const file = folder.createFile(blob);
         (byRef[p.ref] = byRef[p.ref] || []).push(file.getUrl());
       });
-      row["Photos"] = '=HYPERLINK("' + folder.getUrl() + '","' + photos.length + ' photo' + (photos.length > 1 ? "s" : "") + '")';
-    } else {
+      const n = countFiles_(folder);
+      row["Photos"] = '=HYPERLINK("' + folder.getUrl() + '","' + n + ' photo' + (n > 1 ? "s" : "") + '")';
+    } else if (!old) {
       row["Photos"] = "";
-    }
-    appendRow_(sh, row);
+    } // edit without new photos: the existing Photos link is kept
 
-    // Defects → their own sheet so the workshop can track them
-    if (body.defects && body.defects.length) {
-      const dsh = getSheet_(ss, "Defects");
-      body.defects.forEach(function (d) {
-        const links = byRef[d.ref] || [];
-        const r = Object.assign({ "Received": now }, d.row);
-        r["Photo"] = links.length ? '=HYPERLINK("' + (links.length === 1 ? links[0] : folder.getUrl()) + '","View ' +
-          (links.length === 1 ? "photo" : links.length + " photos") + '")' : "";
-        appendRow_(dsh, r);
-      });
+    if (old) {
+      row["Edits"] = (Number(old["Edits"]) || 0) + 1;
+      row["Last edited"] = now;
+      logEdit_(ss, body, old, row, now, photos.length);
+      writeRow_(sh, existing, row);
+      updateDefects_(ss, body, byRef, folder, now);
+    } else {
+      appendRow_(sh, row);
+      // Defects → their own sheet so the workshop can track them
+      if (body.defects && body.defects.length) {
+        const dsh = getSheet_(ss, "Defects");
+        body.defects.forEach(function (d) {
+          const r = Object.assign({ "Received": now }, d.row);
+          r["Photo"] = photoLink_(byRef[d.ref], folder) || "";
+          appendRow_(dsh, r);
+        });
+      }
     }
     return json_({ ok: true });
   } catch (err) {
@@ -88,7 +106,7 @@ function getSheet_(ss, name) {
   let sh = ss.getSheetByName(name);
   if (!sh) {
     sh = ss.insertSheet(name);
-    const headers = name === "Defects" ? DEFECT_HEADERS : ["Received", "Submission ID"];
+    const headers = name === "Defects" ? DEFECT_HEADERS : name === "Edit Log" ? EDITLOG_HEADERS : ["Received", "Submission ID"];
     sh.getRange(1, 1, 1, headers.length).setValues([headers]);
     styleHeader_(sh, SHEETS[name].color);
     if (name === "Defects") defectsFormatting_(sh);
@@ -108,15 +126,21 @@ function headers_(sh) {
   return lc ? sh.getRange(1, 1, 1, lc).getValues()[0].map(String) : [];
 }
 
-function alreadyHave_(sh, id) {
+function findRow_(sh, id) {
   const h = headers_(sh), col = h.indexOf("Submission ID") + 1;
-  if (!col || sh.getLastRow() < 2) return false;
-  return !!sh.getRange(2, col, sh.getLastRow() - 1, 1).createTextFinder(id).matchEntireCell(true).findNext();
+  if (!col || sh.getLastRow() < 2) return 0;
+  const c = sh.getRange(2, col, sh.getLastRow() - 1, 1).createTextFinder(id).matchEntireCell(true).findNext();
+  return c ? c.getRow() : 0;
 }
 
-// Writes an object as a row, matching by column header. New fields get a new column automatically,
-// so you can add checklist items in the app without touching this script.
-function appendRow_(sh, obj) {
+function readRow_(sh, r) {
+  const h = headers_(sh), rg = sh.getRange(r, 1, 1, h.length), v = rg.getValues()[0], f = rg.getFormulas()[0], o = {};
+  h.forEach(function (k, i) { o[k] = f[i] || v[i]; });
+  return o;
+}
+
+// Adds any new column headers the row needs (so new checklist items need no script change).
+function ensureHeaders_(sh, obj) {
   let h = headers_(sh);
   const missing = Object.keys(obj).filter(function (k) { return h.indexOf(k) < 0; });
   if (missing.length) {
@@ -124,20 +148,104 @@ function appendRow_(sh, obj) {
     h = h.concat(missing);
     styleHeader_(sh, SHEETS[sh.getName()].color);
   }
+  return h;
+}
+
+// Writes an object as a new row, matching by column header.
+function appendRow_(sh, obj) {
+  const h = ensureHeaders_(sh, obj);
   const vals = h.map(function (k) { return k in obj ? toCell_(k, obj[k]) : ""; });
   sh.appendRow(vals);
-  const r = sh.getLastRow();
-  // keep text-looking values as text (e.g. matrícula), dates as dates
+  formatRow_(sh, sh.getLastRow(), h, vals, obj);
+}
+
+// Overwrites an existing row; columns not in obj keep what is there (e.g. notes the office added).
+function writeRow_(sh, r, obj) {
+  const h = ensureHeaders_(sh, obj), cur = readRow_(sh, r);
+  const vals = h.map(function (k) { return k in obj ? toCell_(k, obj[k]) : (cur[k] === undefined ? "" : cur[k]); });
+  const rg = sh.getRange(r, 1, 1, h.length);
+  rg.setValues([vals]);
+  rg.setBackground(null).setFontColor(null).setFontWeight("normal");
+  formatRow_(sh, r, h, vals, Object.assign({}, cur, obj));
+}
+
+function formatRow_(sh, r, h, vals, obj) {
   h.forEach(function (k, i) {
-    const v = vals[i];
-    if (v instanceof Date) sh.getRange(r, i + 1).setNumberFormat(k === "Received" || k === "Submitted on phone" ? "dd/mm/yyyy hh:mm" : "dd/mm/yyyy");
+    if (vals[i] instanceof Date) sh.getRange(r, i + 1).setNumberFormat(/^(Received|Submitted on phone|Last edited|Edited on|Closed on)$/.test(k) ? "dd/mm/yyyy hh:mm" : "dd/mm/yyyy");
   });
-  // highlight problems
   const ri = h.indexOf("Result");
-  if (ri >= 0) sh.getRange(r, ri + 1).setBackground(obj["Result"] === "ALL OK" ? "#e3f5ea" : "#fdeaea").setFontWeight("bold");
+  if (ri >= 0 && obj["Result"]) sh.getRange(r, ri + 1).setBackground(obj["Result"] === "ALL OK" ? "#e3f5ea" : "#fdeaea").setFontWeight("bold");
   const wi = h.indexOf("Warnings");
   if (wi >= 0 && obj["Warnings"]) sh.getRange(r, wi + 1).setBackground("#fff4df");
+  const ei = h.indexOf("Edits");
+  if (ei >= 0 && Number(obj["Edits"]) > 0) sh.getRange(r, ei + 1).setBackground("#e8f0fe").setFontWeight("bold");
+  if (sh.getName() === "Edit Log") { sh.getRange(r, h.indexOf("Changes") + 1).setWrap(true); return; }
   h.forEach(function (k, i) { if (vals[i] === "X" || (vals[i] === "Yes" && /damage|Noises/i.test(k))) sh.getRange(r, i + 1).setBackground("#fdeaea").setFontColor("#c62828").setFontWeight("bold"); });
+}
+
+function photoLink_(links, folder) {
+  if (!links || !links.length) return null;
+  return '=HYPERLINK("' + (links.length === 1 ? links[0] : folder.getUrl()) + '","View ' + (links.length === 1 ? "photo" : links.length + " photos") + '")';
+}
+
+// Edit: update this check's defect rows, keeping the workshop's Status / Action taken.
+function updateDefects_(ss, body, byRef, folder, now) {
+  const dsh = getSheet_(ss, "Defects"), h = headers_(dsh);
+  const idCol = h.indexOf("Submission ID"), itemCol = h.indexOf("Item");
+  const rows = {};
+  if (dsh.getLastRow() > 1) {
+    dsh.getRange(2, 1, dsh.getLastRow() - 1, h.length).getValues().forEach(function (v, i) {
+      if (String(v[idCol]) === body.id) rows[v[itemCol]] = { r: i + 2, status: v[h.indexOf("Status")], action: v[h.indexOf("Action taken")] };
+    });
+  }
+  const seen = {};
+  (body.defects || []).forEach(function (d) {
+    const item = d.row["Item"], link = photoLink_(byRef[d.ref], folder);
+    seen[item] = true;
+    if (rows[item]) {
+      const r = Object.assign({}, d.row);
+      delete r["Status"]; delete r["Action taken"]; delete r["Closed on"]; delete r["Received"];
+      if (link) r["Photo"] = link;
+      if (rows[item].status === "Closed" && rows[item].action === REMOVED_BY_EDIT) { r["Status"] = "Open"; r["Action taken"] = ""; r["Closed on"] = ""; }
+      writeRow_(dsh, rows[item].r, r);
+    } else {
+      const r = Object.assign({ "Received": now }, d.row);
+      r["Photo"] = link || "";
+      appendRow_(dsh, r);
+    }
+  });
+  Object.keys(rows).forEach(function (item) {
+    if (!seen[item] && rows[item].status !== "Closed")
+      writeRow_(dsh, rows[item].r, { "Status": "Closed", "Action taken": REMOVED_BY_EDIT, "Closed on": now });
+  });
+}
+
+function logEdit_(ss, body, old, row, now, photosAdded) {
+  const tz = ss.getSpreadsheetTimeZone();
+  const show = function (k, v) {
+    if (v instanceof Date) return Utilities.formatDate(v, tz, /Submitted|Received|edited/i.test(k) ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy");
+    return v === null || v === undefined ? "" : String(v);
+  };
+  const changes = [];
+  Object.keys(body.row).forEach(function (k) {
+    if (/^(Submitted on phone|App language|Submission ID)$/.test(k)) return;
+    const a = show(k, old[k]), b = show(k, toCell_(k, body.row[k])).replace(/^'/, "");
+    if (a !== b) changes.push(k + ": " + (a || "(blank)") + " → " + (b || "(blank)"));
+  });
+  appendRow_(getSheet_(ss, "Edit Log"), {
+    "Edited on": now, "Submission ID": body.id, "Sheet": body.sheet, "Vehicle": body.row["Vehicle"], "Matrícula": body.row["Matrícula"],
+    "Edit no.": row["Edits"], "Changes": changes.length ? changes.join("\n") : "(no field changes)", "Photos added": photosAdded || ""
+  });
+}
+
+function findPhotoFolder_(id) {
+  const it = DriveApp.searchFolders('title contains "' + id + '" and trashed = false');
+  return it.hasNext() ? it.next() : null;
+}
+function countFiles_(folder) {
+  let n = 0; const it = folder.getFiles();
+  while (it.hasNext()) { it.next(); n++; }
+  return n;
 }
 
 function toCell_(key, v) {
