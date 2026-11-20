@@ -4,6 +4,8 @@
 (function () {
   "use strict";
   const CFG = window.APP_CONFIG || {};
+  const MODE = window.APP_MODE === "supervisor" ? "supervisor" : "driver";   // set in supervisor/index.html
+  const BASE = window.APP_BASE || "";                                        // "../" for the supervisor page
   const ITEMS = window.CHECK_ITEMS, PARTS = window.SERVICE_PARTS;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
@@ -230,10 +232,11 @@
     $("#backBtn").classList.toggle("hidden", !h);
     $("#langBtn").textContent = lang === "pt" ? "EN" : "PT";
     $("#hdrTitle").textContent = t("appName");
+    $("#hdrSub").textContent = MODE === "supervisor" ? "LBH Vehicles · " + t("supervisor") : "LBH Vehicles";
     document.documentElement.lang = lang;
     updateNet();
     if (h === "check") return openForm("check");
-    if (h === "service") return openForm("service");
+    if (h === "service" && MODE === "supervisor") return openForm("service");
     if (h === "done" && lastDone) return renderDone();
     form = null; renderHome();
   }
@@ -246,15 +249,15 @@
     view.classList.add("is-home");
     const hist = history.list().slice(0, 8);
     view.innerHTML = `<div class="home">
-      <div class="logo-top"><img src="icons/lbh-logo.png" alt="LBH Group"></div>
-      <button class="bigbtn" data-go="check"><span class="ico"><img src="icons/vehicle.png" alt=""></span><span><b>${t("newCheck")}</b><small>${t("newCheckSub")}</small></span></button>
-      <button class="bigbtn" data-go="service"><span class="ico">🔧</span><span><b>${t("newService")}</b><small>${t("newServiceSub")}</small></span></button>
+      <div class="logo-top"><img src="${BASE}icons/lbh-logo.png" alt="LBH Group"></div>
+      <button class="bigbtn" data-go="check"><span class="ico"><img src="${BASE}icons/vehicle.png" alt=""></span><span><b>${t("newCheck")}</b><small>${t("newCheckSub")}</small></span></button>
+      ${MODE === "supervisor" ? `<button class="bigbtn" data-go="service"><span class="ico">🔧</span><span><b>${t("newService")}</b><small>${t("newServiceSub")}</small></span></button>` : ""}
       <div class="card pending" id="pendingBox"><div><div class="n">0</div><div class="lbl"></div></div><button class="btn sec">${t("sendNow")}</button></div>
       ${hist.length ? `<h2>${t("recent")}</h2><div class="card list">${hist.map(h => `
         <div class="row"><span><b>${esc(h.label)}</b><br><small>${esc(h.date)} · ${h.type === "service" ? "🔧" : "🚐"}${h.defects ? ` · <span style="color:var(--bad)">${t("defectsFound", { n: h.defects })}</span>` : ""}</small></span>
         <span class="rowend"><span class="tag ${h.status === "sent" ? "ok" : "q"}">${h.status === "sent" ? t("sent") : t("notSent")}</span>${h.edits ? `<small class="edited">${t("edited")}</small>` : ""}
         ${canEdit(h) ? `<button class="editbtn" data-edit="${esc(h.id)}">✏️ ${t("edit")}</button>` : ""}</span></div>`).join("")}</div>` : ""}
-      <div class="logo-foot"><img src="icons/logo.png" alt="DM27"></div></div>`;
+      <div class="logo-foot"><img src="${BASE}icons/logo.png" alt="DM27"></div></div>`;
     $$("[data-go]").forEach(b => b.onclick = () => { location.hash = "#/" + b.dataset.go; });
     $("#pendingBox button").onclick = () => sync(true);
     $$("[data-edit]").forEach(b => b.onclick = () => startEdit(b.dataset.edit));
@@ -631,7 +634,7 @@
     view.innerHTML = `<div class="done">
       <div class="big">${d.length ? "⚠️" : "✅"}</div>
       <h1>${rec.edit ? t("editSavedTitle") : t("savedTitle")}</h1>
-      <p style="color:var(--muted)">${status === "sent" ? t("savedSent") : t("savedQueued")}</p>
+      <p class="donemsg">${status === "sent" ? t("savedSent") : t("savedQueued")}</p>
       <div class="card summary">
         <b>${esc(f.vehicle || "")} · ${esc((f.matricula || "").toUpperCase())}</b><br><small>${esc(f.date)} · ${esc(f.km)} km</small>
         ${rec.type === "check" ? `<p style="margin:10px 0 0;font-weight:700;color:${d.length ? "var(--bad)" : "var(--ok)"}">${d.length ? t("defectsFound", { n: d.length }) : t("allOk")}</p>
@@ -648,7 +651,7 @@
   // ---------- start ----------
   view.addEventListener("change", e => form && onPhoto(e));
   view.addEventListener("click", e => form && onDelPhoto(e));
-  if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register(BASE + "sw.js").catch(() => {});
   if (location.hash === "#/done") location.hash = "#/";
   route();
   sync();

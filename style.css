@@ -1,5 +1,5 @@
 :root{
-  --navy:#0b3d5c; --navy2:#145a85; --bg:#f3f5f7; --card:#fff; --ink:#1b2430; --muted:#5d6b7a;
+  --navy:#0b3d5c; --navy2:#145a85; --bg:#d4af37; --onbg:#0b2a40; --card:#fff; --ink:#1b2430; --muted:#5d6b7a;
   --line:#d9dfe5; --ok:#1e8e4e; --okbg:#e3f5ea; --bad:#c62828; --badbg:#fdeaea; --warn:#b26a00; --warnbg:#fff4df;
   --r:14px;
 }
@@ -14,7 +14,7 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-sy
 .lang{background:#fff;color:var(--navy);border:0;border-radius:20px;padding:7px 14px;font-weight:700;font-size:14px;cursor:pointer}
 .banner{background:var(--warnbg);color:var(--warn);padding:10px 14px;font-size:14px;border-bottom:1px solid #f0d9a8}
 main{max-width:640px;margin:0 auto;padding:14px 14px calc(110px + env(safe-area-inset-bottom))}
-h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:22px 4px 8px}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--onbg);margin:22px 4px 8px}
 .card{background:var(--card);border-radius:var(--r);box-shadow:0 1px 3px rgba(0,0,0,.08);padding:14px;margin-bottom:12px}
 .bigbtn{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--card);border:0;border-radius:var(--r);
   box-shadow:0 1px 3px rgba(0,0,0,.1);padding:18px 16px;margin-bottom:12px;cursor:pointer;font:inherit;color:inherit}
@@ -70,7 +70,7 @@ input.err,textarea.err,.item.err{border-color:var(--bad)!important;box-shadow:0 
 .bar i{display:block;height:100%;background:var(--ok);width:0;transition:width .2s}
 .progress small{display:block;text-align:right;color:var(--muted);font-size:12px;margin-top:3px}
 .stop{background:var(--bad);color:#fff;font-weight:700;text-align:center;border-radius:var(--r);padding:12px;font-size:14px;margin:16px 0}
-.footer{position:fixed;left:0;right:0;bottom:0;background:rgba(243,245,247,.96);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));z-index:9}
+.footer{position:fixed;left:0;right:0;bottom:0;background:rgba(212,175,55,.96);border-top:1px solid #b8962c;padding:10px 14px calc(10px + env(safe-area-inset-bottom));z-index:9}
 .footer .btn{width:100%;max-width:612px;display:block;margin:0 auto;padding:16px;font-size:18px}
 .errors{background:var(--badbg);color:var(--bad);border-radius:var(--r);padding:12px 14px;font-size:14px;margin-bottom:12px}
 .errors ul{margin:6px 0 0 18px;padding:0}
@@ -103,3 +103,6 @@ select{appearance:auto;min-height:46px}
 .list .rowend{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .editbtn{border:1.5px solid var(--navy2);background:#fff;color:var(--navy2);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
 .edited{font-size:11px;color:var(--muted)}
+.progress small,.linkbtn,.donemsg{color:var(--onbg)}
+.done h1{color:var(--onbg)}
+.card,.item,.bigbtn{box-shadow:0 1px 4px rgba(60,40,0,.25)}
