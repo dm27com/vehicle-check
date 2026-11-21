@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Fleet Controller – LBH Vehicles</title>
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="stylesheet" href="controller.css">
+</head>
+<body>
+<header class="top">
+  <img src="../icons/icon-192.png" alt="" class="logo">
+  <div class="brand"><strong>Fleet Controller</strong><span>LBH Vehicles</span></div>
+  <nav id="tabs" class="hidden">
+    <button data-tab="work" class="on">Record work</button>
+    <button data-tab="fleet">Fleet status</button>
+    <button data-tab="recent">Recent work</button>
+  </nav>
+  <button id="reload" class="ghost hidden" title="Reload data from the Sheet">⟳ Refresh</button>
+</header>
+
+<main>
+  <!-- first-time key -->
+  <section id="gate" class="card narrow hidden">
+    <h2>Connect this PC</h2>
+    <p>Type the <b>Controller key</b>. It's on the <b>Settings</b> tab of the Vehicle Checks Google Sheet. You only need to do this once on this PC.</p>
+    <form id="gateForm"><input id="ckey" autocomplete="off" placeholder="Controller key" required> <button class="btn">Connect</button></form>
+    <p id="gateMsg" class="err"></p>
+  </section>
+
+  <div id="loading" class="card narrow">Loading fleet…</div>
+
+  <!-- record work -->
+  <section id="tab-work" class="hidden">
+    <form id="workForm" autocomplete="off" novalidate>
+      <div class="card">
+        <h2>Vehicle &amp; job</h2>
+        <div class="grid g4">
+          <label class="span2">Vehicle *<select name="reg" required></select></label>
+          <label>Date *<input type="date" name="date" required></label>
+          <label>Km on odometer<input type="number" name="km" min="0" step="1" inputmode="numeric"></label>
+        </div>
+        <div id="vehInfo" class="info"></div>
+        <div class="grid g4">
+          <label>Type of work *<select name="type" required></select></label>
+          <label class="span2">Workshop / mechanic<input name="workshop" list="workshops"></label>
+          <label>Invoice no.<input name="invoiceNo"></label>
+        </div>
+        <label>Work done (one job per line) *<textarea name="work" rows="4" required placeholder="e.g. Engine service&#10;Rear brake pads replaced&#10;Tailgate latch repaired"></textarea></label>
+      </div>
+
+      <div class="card">
+        <h2>Parts &amp; materials</h2>
+        <table class="parts">
+          <thead><tr><th style="width:34%">Part</th><th style="width:20%">Part no.</th><th style="width:9%">Qty</th><th style="width:15%">Unit cost</th><th style="width:15%" class="num">Line total</th><th></th></tr></thead>
+          <tbody id="partRows"></tbody>
+        </table>
+        <button type="button" id="addPart" class="btn sec">+ Add part</button>
+        <datalist id="partNames"></datalist><datalist id="workshops"></datalist>
+      </div>
+
+      <div class="card">
+        <h2>Costs</h2>
+        <div class="grid g4">
+          <label>Parts<output id="partsTotal" class="out">0</output></label>
+          <label>Labour<input type="number" name="labour" min="0" step="0.01"></label>
+          <label>Other (towing, transport…)<input type="number" name="other" min="0" step="0.01"></label>
+          <label>Total<output id="grandTotal" class="out big">0</output></label>
+        </div>
+        <label>Invoice / quote (PDF or photo)<input type="file" name="invoice" accept="application/pdf,image/*"></label>
+      </div>
+
+      <div class="card" id="defectCard">
+        <h2>Open defects on this vehicle</h2>
+        <div id="defectList" class="muted">Choose a vehicle.</div>
+      </div>
+
+      <div class="card">
+        <h2>Still to do</h2>
+        <label>Work still needed on this vehicle (one per line). Each line stays on the "work needed" list until it is closed.
+          <textarea name="followups" rows="3" placeholder="e.g. Jack broken – needs replacing&#10;AC not cooling – quote needed"></textarea></label>
+        <div class="grid g4">
+          <label class="span2">Entered by *<input name="enteredBy" required></label>
+          <label class="span2">Notes<input name="notes"></label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <span id="formMsg" class="err"></span>
+        <button type="button" id="clearForm" class="btn sec">Clear form</button>
+        <button id="submitBtn" class="btn">Save work record</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- fleet status -->
+  <section id="tab-fleet" class="hidden">
+    <div class="card">
+      <div class="bar"><h2>Fleet status</h2>
+        <label class="inline">Site <select id="siteFilter"><option value="">All sites</option></select></label>
+        <label class="inline"><input type="checkbox" id="onlyActive" checked> Active only</label>
+      </div>
+      <div id="summary" class="summary"></div>
+      <div class="scroll"><table class="list" id="fleetTable"></table></div>
+      <p class="muted small">Click a vehicle to record work on it.</p>
+    </div>
+  </section>
+
+  <!-- recent -->
+  <section id="tab-recent" class="hidden">
+    <div class="card"><h2>Last 25 work records</h2><div class="scroll"><table class="list" id="recentTable"></table></div></div>
+  </section>
+</main>
+<div id="toast" class="toast hidden"></div>
+
+<script src="../config.js"></script>
+<script src="../data.js"></script>
+<script src="controller.js"></script>
+</body>
+</html>

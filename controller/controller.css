@@ -1,0 +1,56 @@
+:root{--navy:#0b3d5c;--bg:#eef1f4;--card:#fff;--ink:#1b2430;--muted:#5d6b7a;--line:#d9dfe5;
+  --ok:#1e8e4e;--okbg:#e3f5ea;--bad:#c62828;--badbg:#fdeaea;--warn:#b26a00;--warnbg:#fff4df}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Segoe UI",Roboto,Arial,sans-serif}
+.hidden{display:none!important}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;background:var(--navy);color:#fff;padding:10px 22px}
+.logo{width:34px;height:34px;border-radius:8px}
+.brand{display:flex;flex-direction:column;line-height:1.15;margin-right:20px}
+.brand strong{font-size:18px}.brand span{font-size:12px;opacity:.75}
+nav{display:flex;gap:4px;flex:1}
+nav button,.ghost{background:none;border:0;color:#fff;opacity:.75;font:inherit;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer}
+nav button.on{background:rgba(255,255,255,.15);opacity:1}
+.ghost:hover,nav button:hover{opacity:1}
+main{max-width:1180px;margin:0 auto;padding:18px 22px 60px}
+.card{background:var(--card);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:16px 18px;margin-bottom:14px}
+.card.narrow{max-width:520px;margin:40px auto}
+h2{font-size:14px;text-transform:uppercase;letter-spacing:.05em;color:var(--navy);margin:0 0 12px}
+label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px}
+label.inline{display:inline-flex;align-items:center;gap:6px;margin:0 0 0 16px}
+input,select,textarea{display:block;width:100%;margin-top:4px;font:inherit;color:var(--ink);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+label.inline select,label.inline input{display:inline-block;width:auto;margin:0}
+input[type=checkbox]{width:auto;display:inline}
+textarea{resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid #9cc3de;border-color:#9cc3de}
+.invalid{border-color:var(--bad)!important;background:var(--badbg)}
+.grid{display:grid;gap:0 14px}.g4{grid-template-columns:repeat(4,1fr)}.span2{grid-column:span 2}
+.out{display:block;margin-top:4px;padding:8px 10px;border-radius:8px;background:#f4f6f8;color:var(--ink);font-size:15px}
+.out.big{font-size:18px;font-weight:700;color:var(--navy)}
+.info{margin:-2px 0 12px;padding:8px 12px;border-radius:8px;background:#f4f6f8;font-size:13px;min-height:20px}
+.info:empty{display:none}
+.btn{border:0;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer;background:var(--navy);color:#fff}
+.btn.sec{background:#e6eef4;color:var(--navy)}.btn:disabled{opacity:.5;cursor:wait}
+.btn.x{background:none;color:var(--muted);padding:4px 8px;font-size:18px}
+.actions{display:flex;justify-content:flex-end;align-items:center;gap:10px;position:sticky;bottom:0;background:var(--bg);padding:12px 0}
+.actions .err{flex:1}
+.err{color:var(--bad);font-weight:600}
+.muted{color:var(--muted)}.small{font-size:12px}
+table{border-collapse:collapse;width:100%}
+.parts td{padding:3px 4px}.parts th{text-align:left;font-size:12px;color:var(--muted);padding:0 4px}
+.parts input{margin:0}
+.num{text-align:right}
+.list th{text-align:left;font-size:12px;color:var(--muted);border-bottom:2px solid var(--line);padding:6px 8px;white-space:nowrap;position:sticky;top:0;background:#fff}
+.list td{padding:6px 8px;border-bottom:1px solid #eef1f4;font-size:14px;vertical-align:top}
+.list tbody tr{cursor:pointer}.list tbody tr:hover{background:#f6f9fb}
+.scroll{max-height:68vh;overflow:auto}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:700}
+.p-OVERDUE{background:var(--badbg);color:var(--bad)}.p-Due{background:var(--warnbg);color:var(--warn)}.p-OK{background:var(--okbg);color:var(--ok)}.p-No{background:#eee;color:#666}
+.bar{display:flex;align-items:center}.bar h2{margin:0;flex:1}
+.summary{display:flex;gap:10px;margin:12px 0}
+.summary div{flex:1;background:#f4f6f8;border-radius:10px;padding:10px;text-align:center}
+.summary b{display:block;font-size:22px}.summary span{font-size:12px;color:var(--muted)}
+.defect{display:grid;grid-template-columns:1fr 150px 1fr;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #eef1f4}
+.defect select,.defect input{margin:0}
+.defect .what{font-size:14px}.defect .what small{color:var(--muted)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b2430;color:#fff;padding:12px 20px;border-radius:10px;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+@media (max-width:760px){.g4{grid-template-columns:1fr 1fr}.top{flex-wrap:wrap}.defect{grid-template-columns:1fr}}
