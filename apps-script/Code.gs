@@ -615,7 +615,7 @@ function fleetState_(ss) {
 }
 
 /** Writes the grey (automatic) columns of the Fleet tab. */
-function writeFleet_(ss, state) {
+function writeFleet_(ss, state, valuesOnly) {
   const sh = ss.getSheetByName("Fleet"); if (!sh || !state.list.length) return;
   const h = headers_(sh), from = h.indexOf(FLEET_AUTO_FROM), to = h.indexOf("Open defects");
   const vals = state.list.map(function (v) {
@@ -635,6 +635,7 @@ function writeFleet_(ss, state) {
   const contiguous = rows.every(function (r, i) { return r === rows[0] + i; });
   if (contiguous) sh.getRange(rows[0], from + 1, vals.length, vals[0].length).setValues(vals);
   else vals.forEach(function (r, i) { sh.getRange(rows[i], from + 1, 1, r.length).setValues([r]); });
+  if (valuesOnly) return;
   ["Last service date", "Next service date", "Latest km date", "Last check date", "Inspection expires", "Imposto expires", "Insurance expires"]
     .forEach(function (k) { sh.getRange(2, h.indexOf(k) + 1, sh.getLastRow() - 1, 1).setNumberFormat("dd/mm/yyyy"); });
   ["Last service km", "Next service km", "Km to service", "Latest km", "Schedule last service km", "Schedule next service km", "Service every (km)"]
@@ -751,7 +752,7 @@ function writeDashboard_(ss, r) {
 
   title("WEEKLY CHECKS NOT DONE – " + fmtDate_(r.week.from) + " to " + fmtDate_(r.week.to), "#b26a00");
   table(["Site", "Matrícula", "Make", "Last check", "Days since"], r.missing.map(function (v) {
-    return [v.site, v.reg, v.make, v.lastCheck || "never", v.lastCheck ? daysBetween_(v.lastCheck, r.week.to) + 1 : ""];
+    return [v.site, v.reg, v.make, v.lastCheck || "never", v.lastCheck ? daysBetween_(v.lastCheck, new Date()) : ""];
   }), "Every active vehicle was checked ✓");
 
   title("WORK NEEDED – open defects and follow-ups", "#0b3d5c");
@@ -772,8 +773,9 @@ function writeDashboard_(ss, r) {
 
   [110, 110, 140, 150, 260, 110, 110, 140].forEach(function (w, i) { sh.setColumnWidth(i + 1, w); });
   // dates
-  const vals = sh.getDataRange().getValues();
-  vals.forEach(function (rr, i) { rr.forEach(function (c, j) { if (c instanceof Date) sh.getRange(i + 1, j + 1).setNumberFormat("dd/mm/yyyy"); else if (typeof c === "number" && c > 999 && j >= 3) sh.getRange(i + 1, j + 1).setNumberFormat("#,##0"); }); });
+  const dr = sh.getDataRange(), vals = dr.getValues();
+  dr.setNumberFormats(vals.map(function (rr) { return rr.map(function (c, j) {
+    return c instanceof Date ? "dd/mm/yyyy" : (typeof c === "number" && Math.abs(c) > 999 && j >= 3) ? "#,##0" : "General"; }); }));
   sh.setFrozenRows(2);
   sh.setTabColor("#0b3d5c");
 }
@@ -918,7 +920,8 @@ function saveWork_(ss, body) {
   const wl = getFleetSheet_(ss, "Work Log", WORK_HEADERS);
   if (findRow_(wl, body.id)) return { ok: true, duplicate: true };
   const now = new Date(), row = body.row || {};
-  const state = fleetState_(ss), v = state.byReg[normReg_(row["Matrícula"])];
+  const fr = table_(ss, "Fleet").rows.filter(function (f) { return normReg_(f["Matrícula"]) === normReg_(row["Matrícula"]); })[0];
+  const v = fr ? { make: fr["Make"], site: String(fr["Site"] || "").trim() } : null;
   const parts = (body.parts || []).filter(function (p) { return p.part; });
   const partsCost = parts.reduce(function (t, p) { return t + (Number(p.qty) || 1) * (Number(p.unit) || 0); }, 0);
   const labour = Number(row["Labour cost"]) || 0, other = Number(row["Other cost"]) || 0;
@@ -980,7 +983,7 @@ function saveWork_(ss, body) {
         "Status": "Open", "Action taken": "", "Closed on": "" });
     });
   }
-  writeFleet_(ss, fleetState_(ss));
+  writeFleet_(ss, fleetState_(ss), true);
   return { ok: true, total: total };
 }
 
