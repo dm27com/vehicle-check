@@ -60,3 +60,6 @@ table{border-collapse:collapse;width:100%}
 .datebox.has input[type=date]:focus{color:transparent}
 .datetext{position:absolute;left:11px;top:calc(50% + 2px);transform:translateY(-50%);pointer-events:none;color:var(--ink);font:inherit}
 .datebox.has input[type=date]::-webkit-datetime-edit{opacity:0}
+select option.fault{background:#fdeaea;color:#8b1a1a}
+select.fault{background-color:#fdeaea;border-color:#e8a5a5}
+select option:not(.fault){background:#fff;color:#1b2430}

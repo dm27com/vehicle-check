@@ -74,8 +74,8 @@
     const sel = form.reg, cur = sel.value || store.get("draft", {}).reg || "";
     sel.innerHTML = '<option value="">– choose vehicle –</option>' + sites.map(s =>
       `<optgroup label="${esc(s)}">` + DATA.fleet.filter(v => v.site === s).sort((a, b) => a.reg.localeCompare(b.reg))
-        .map(v => `<option value="${esc(v.reg)}">${esc(v.reg)} – ${esc(v.make)}${v.active ? "" : " (inactive)"}</option>`).join("") + "</optgroup>").join("");
-    sel.value = cur;
+        .map(v => `<option value="${esc(v.reg)}"${v.openDefects ? ' class="fault"' : ""}>${esc(v.reg)} – ${esc(v.make)}${v.active ? "" : " (inactive)"}${v.openDefects ? " ⚠ " + v.openDefects + " fault" + (v.openDefects > 1 ? "s" : "") : ""}</option>`).join("") + "</optgroup>").join("");
+    sel.value = cur; shadeReg();
     form.type.innerHTML = '<option value="">– choose –</option>' + DATA.types.map(t => `<option>${esc(t)}</option>`).join("");
     const parts = new Set((window.SERVICE_PARTS || []).map(p => p.en).concat(Object.keys(DATA.parts || {})));
     $("#partNames").innerHTML = [...parts].sort().map(p => `<option value="${esc(p)}">`).join("");
@@ -100,7 +100,7 @@
         <td><span class="pill p-${esc(v.status.split(" ")[0])}">${esc(v.label || v.status)}</span></td><td class="num">${fmt(v.latestKm)}</td>
         <td class="num">${fmt(v.nextKm)}</td><td class="num">${fmt(v.kmTo)}</td><td>${esc(v.nextDate)}</td><td>${esc(v.lastService)}</td>
         <td>${esc(v.lastCheck) || '<span class="muted">never</span>'}</td><td class="num">${v.openDefects || ""}</td></tr>`).join("") + "</tbody>";
-    $$("#fleetTable tbody tr").forEach(tr => tr.addEventListener("click", () => { form.reg.value = tr.dataset.reg; vehicleChanged(); saveDraft(); showTab("work"); scrollTo(0, 0); }));
+    $$("#fleetTable tbody tr").forEach(tr => tr.addEventListener("click", () => { form.reg.value = tr.dataset.reg; shadeReg(); vehicleChanged(); saveDraft(); showTab("work"); scrollTo(0, 0); }));
   }
   $("#siteFilter").addEventListener("change", renderFleet);
   $("#onlyActive").addEventListener("change", renderFleet);
@@ -127,6 +127,10 @@
           <input placeholder="Action taken" value="${esc(s.action || "")}"></div>`; }).join("");
     $$("#defectList select, #defectList input").forEach(el => el.addEventListener("input", saveDraft));
   }
+  // vehicles with open faults (defects not yet closed) are shaded in the list, and the box stays shaded when one is chosen
+  function shadeReg() { const o = form.reg.selectedOptions[0]; form.reg.classList.toggle("fault", !!(o && o.classList.contains("fault"))); }
+  form.reg.addEventListener("change", shadeReg);
+  form.addEventListener("reset", () => setTimeout(shadeReg));
   form.reg.addEventListener("change", vehicleChanged);
 
   // ---------- parts ----------
