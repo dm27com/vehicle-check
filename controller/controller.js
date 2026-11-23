@@ -17,6 +17,24 @@
 
   function toast(msg, ms = 3500) { const t = $("#toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add("hidden"), ms); }
 
+  // ---------- date boxes shown as "21 Nov 2026" ----------
+  // The browser's own date box always uses the PC's regional format (21/11/2026), so the
+  // date is shown as text over it; the calendar button and picking a date work as normal.
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const longDate = v => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ""); return m ? m[3] + " " + MONTHS[+m[2] - 1] + " " + m[1] : ""; };
+  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+  $$('input[type="date"]').forEach(inp => {
+    const wrap = document.createElement("span"); wrap.className = "datebox";
+    inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(inp);
+    const shown = document.createElement("span"); shown.className = "datetext"; wrap.appendChild(shown);
+    const show = () => { shown.textContent = longDate(desc.get.call(inp)); wrap.classList.toggle("has", !!shown.textContent); };
+    // also catch dates set by the page itself (new job, draft restored, form cleared)
+    Object.defineProperty(inp, "value", { get() { return desc.get.call(this); }, set(v) { desc.set.call(this, v); show(); } });
+    ["input", "change"].forEach(ev => inp.addEventListener(ev, show));
+    inp.form && inp.form.addEventListener("reset", () => setTimeout(show));
+    show();
+  });
+
   // ---------- loading ----------
   async function load() {
     const ckey = store.get("ckey", "");

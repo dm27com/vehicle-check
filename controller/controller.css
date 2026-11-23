@@ -55,3 +55,8 @@ table{border-collapse:collapse;width:100%}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1b2430;color:#fff;padding:12px 20px;border-radius:10px;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 @media (max-width:760px){.g4{grid-template-columns:1fr 1fr}.top{flex-wrap:wrap}.defect{grid-template-columns:1fr}}
 .list tbody tr.site-start td{border-top:3px solid #0b3d5c}
+.datebox{position:relative;display:block}
+.datebox.has input[type=date]{color:transparent}
+.datebox.has input[type=date]:focus{color:transparent}
+.datetext{position:absolute;left:11px;top:calc(50% + 2px);transform:translateY(-50%);pointer-events:none;color:var(--ink);font:inherit}
+.datebox.has input[type=date]::-webkit-datetime-edit{opacity:0}
