@@ -608,6 +608,12 @@ function fleetState_(ss) {
     else if ((v.kmTo !== null && v.kmTo < 0) || (v.daysTo !== null && v.daysTo < 0)) v.status = "OVERDUE";
     else if ((v.kmTo !== null && v.kmTo <= Number(set["Due soon (km)"])) || (v.daysTo !== null && v.daysTo <= Number(set["Due soon (days)"]))) v.status = "Due soon";
     else v.status = "OK";
+    // why: which limit made it overdue / due soon (km, date or both), shown as e.g. "OVERDUE – date"
+    const soonKm = Number(set["Due soon (km)"]), soonDays = Number(set["Due soon (days)"]);
+    const byKm = v.kmTo !== null && (v.status === "OVERDUE" ? v.kmTo < 0 : v.kmTo <= soonKm);
+    const byDate = v.daysTo !== null && (v.status === "OVERDUE" ? v.daysTo < 0 : v.daysTo <= soonDays);
+    v.why = (v.status === "OVERDUE" || v.status === "Due soon") ? (byKm && byDate ? "km & date" : byKm ? "km" : byDate ? "date" : "") : "";
+    v.label = v.status + (v.why ? " – " + v.why : "");
     v.checks.sort(function (a, b) { return (a.date || 0) - (b.date || 0); });
     v.lastCheck = v.checks.length ? v.checks[v.checks.length - 1].date : null;
   });
@@ -621,7 +627,7 @@ function writeFleet_(ss, state, valuesOnly) {
   const vals = state.list.map(function (v) {
     const o = {
       "Last service date": v.lastSvcDate || "", "Last service km": v.lastSvcKm || "", "Next service km": v.nextKm || "",
-      "Next service date": v.nextDate || "", "Km to service": v.kmTo === null ? "" : v.kmTo, "Service status": v.status,
+      "Next service date": v.nextDate || "", "Km to service": v.kmTo === null ? "" : v.kmTo, "Service status": v.label,
       "Latest km": v.latestKm || "", "Latest km date": v.latestKmDate || "", "Last check date": v.lastCheck || "",
       "Inspection expires": v.exp["Inspection expires"] ? v.exp["Inspection expires"].date : "",
       "Imposto expires": v.exp["Imposto expires"] ? v.exp["Imposto expires"].date : "",
@@ -645,7 +651,7 @@ function writeFleet_(ss, state, valuesOnly) {
     return !r.getRanges().some(function (x) { return x.getColumn() === stc; });
   });
   [["OVERDUE", "#fdeaea", "#c62828"], ["Due soon", "#fff4df", "#b26a00"], ["OK", "#e3f5ea", "#1e8e4e"]].forEach(function (c) {
-    rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(c[0]).setBackground(c[1]).setFontColor(c[2]).setBold(true).setRanges([rng]).build());
+    rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextStartsWith(c[0]).setBackground(c[1]).setFontColor(c[2]).setBold(true).setRanges([rng]).build());
   });
   sh.setConditionalFormatRules(rules);
 }
@@ -748,7 +754,7 @@ function writeDashboard_(ss, r) {
   title("SERVICES OVERDUE / DUE SOON", "#c62828");
   let s = table_rows_services_(r);
   const sStart = table(["Site", "Matrícula", "Make", "Status", "Latest km", "Next service km", "Km to go", "Next service date"], s, "No services due ✓");
-  if (sStart) s.forEach(function (x, i) { sh.getRange(sStart + i, 4).setFontColor(x[3] === "OVERDUE" ? "#c62828" : "#b26a00").setFontWeight("bold"); });
+  if (sStart) s.forEach(function (x, i) { sh.getRange(sStart + i, 4).setFontColor(String(x[3]).indexOf("OVERDUE") === 0 ? "#c62828" : "#b26a00").setFontWeight("bold"); });
 
   title("WEEKLY CHECKS NOT DONE – " + fmtDate_(r.week.from) + " to " + fmtDate_(r.week.to), "#b26a00");
   table(["Site", "Matrícula", "Make", "Last check", "Days since"], r.missing.map(function (v) {
@@ -781,7 +787,7 @@ function writeDashboard_(ss, r) {
 }
 function table_rows_services_(r) {
   return r.services.map(function (v) {
-    return [v.site, v.reg, v.make, v.status, v.latestKm || "", v.nextKm || "", v.kmTo === null ? "" : v.kmTo, v.nextDate || ""];
+    return [v.site, v.reg, v.make, v.label, v.latestKm || "", v.nextKm || "", v.kmTo === null ? "" : v.kmTo, v.nextDate || ""];
   });
 }
 
@@ -807,7 +813,7 @@ function reportHtml_(r, ss) {
 
   h += h2("Services overdue / due soon", "#c62828");
   h += tbl(["Site", "Matrícula", "Make", "Status", "Latest km", "Next service", "Km to go", "Date limit"], r.services.map(function (v) {
-    return td([esc_(v.site), "<b>" + esc_(v.reg) + "</b>", esc_(v.make), badge(v.status, v.status === "OVERDUE" ? "#c62828" : "#b26a00"),
+    return td([esc_(v.site), "<b>" + esc_(v.reg) + "</b>", esc_(v.make), badge(v.label, v.status === "OVERDUE" ? "#c62828" : "#b26a00"),
       fmtNum_(v.latestKm), fmtNum_(v.nextKm), v.kmTo === null ? "" : fmtNum_(v.kmTo), fmtDate_(v.nextDate)]);
   }), "No services due ✓");
 
@@ -894,7 +900,7 @@ function controllerData_(ss) {
   const state = fleetState_(ss);
   const fleet = state.list.map(function (v) {
     return { reg: v.reg, make: v.make, site: v.site, active: v.active, interval: v.interval, latestKm: v.latestKm || null,
-      nextKm: v.nextKm || null, kmTo: v.kmTo, nextDate: v.nextDate ? fmtDate_(v.nextDate) : "", status: v.status,
+      nextKm: v.nextKm || null, kmTo: v.kmTo, nextDate: v.nextDate ? fmtDate_(v.nextDate) : "", status: v.status, label: v.label,
       lastCheck: v.lastCheck ? fmtDate_(v.lastCheck) : "", lastService: v.lastSvcDate ? fmtDate_(v.lastSvcDate) : "",
       openDefects: v.defects.length };
   });

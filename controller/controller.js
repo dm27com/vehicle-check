@@ -97,7 +97,7 @@
       [rows.reduce((t, v) => t + v.openDefects, 0), "open defects"]].map(x => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join("");
     $("#fleetTable").innerHTML = `<thead><tr><th>Site</th><th>Matrícula</th><th>Make</th><th>Service</th><th class="num">Latest km</th><th class="num">Next service km</th><th class="num">Km to go</th><th>Date limit</th><th>Last service</th><th>Last check</th><th class="num">Open defects</th></tr></thead><tbody>` +
       rows.map((v, i) => `<tr data-reg="${esc(v.reg)}"${i && rows[i - 1].site !== v.site ? ' class="site-start"' : ""}><td>${esc(v.site)}</td><td><b>${esc(v.reg)}</b></td><td>${esc(v.make)}</td>
-        <td><span class="pill p-${esc(v.status.split(" ")[0])}">${esc(v.status)}</span></td><td class="num">${fmt(v.latestKm)}</td>
+        <td><span class="pill p-${esc(v.status.split(" ")[0])}">${esc(v.label || v.status)}</span></td><td class="num">${fmt(v.latestKm)}</td>
         <td class="num">${fmt(v.nextKm)}</td><td class="num">${fmt(v.kmTo)}</td><td>${esc(v.nextDate)}</td><td>${esc(v.lastService)}</td>
         <td>${esc(v.lastCheck) || '<span class="muted">never</span>'}</td><td class="num">${v.openDefects || ""}</td></tr>`).join("") + "</tbody>";
     $$("#fleetTable tbody tr").forEach(tr => tr.addEventListener("click", () => { form.reg.value = tr.dataset.reg; vehicleChanged(); saveDraft(); showTab("work"); scrollTo(0, 0); }));
@@ -114,7 +114,7 @@
   // ---------- vehicle info + its open defects ----------
   function vehicleChanged() {
     const v = DATA && DATA.fleet.find(x => x.reg === form.reg.value);
-    $("#vehInfo").innerHTML = v ? [esc(v.site), esc(v.make), `<span class="pill p-${esc(v.status.split(" ")[0])}">${esc(v.status)}</span>`,
+    $("#vehInfo").innerHTML = v ? [esc(v.site), esc(v.make), `<span class="pill p-${esc(v.status.split(" ")[0])}">${esc(v.label || v.status)}</span>`,
       v.latestKm ? "latest " + fmt(v.latestKm) + " km" : "", v.nextKm ? "next service " + fmt(v.nextKm) + " km" + (v.kmTo != null ? " (" + fmt(v.kmTo) + " to go)" : "") : "",
       v.nextDate ? "date limit " + esc(v.nextDate) : "", v.interval ? "every " + fmt(v.interval) + " km" : ""].filter(Boolean).join(" · ") : "";
     const ds = DATA ? DATA.defects.filter(d => d.reg === form.reg.value) : [];
