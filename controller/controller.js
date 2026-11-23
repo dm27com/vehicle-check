@@ -71,13 +71,14 @@
   function renderFleet() {
     const site = $("#siteFilter").value, act = $("#onlyActive").checked;
     const rows = DATA.fleet.filter(v => (!site || v.site === site) && (!act || v.active));
-    const order = { OVERDUE: 0, "Due soon": 1, OK: 2, "No data": 3 };
-    rows.sort((a, b) => order[a.status] - order[b.status] || (a.kmTo ?? 1e9) - (b.kmTo ?? 1e9));
+    // grouped by site, then vehicle type (make/model), then registration
+    const cmp = (x, y) => String(x || "").localeCompare(String(y || ""), "en", { sensitivity: "base", numeric: true });
+    rows.sort((a, b) => cmp(a.site, b.site) || cmp(a.make, b.make) || cmp(a.reg, b.reg));
     const n = s => rows.filter(v => v.status === s).length;
     $("#summary").innerHTML = [[rows.length, "vehicles"], [n("OVERDUE"), "service overdue"], [n("Due soon"), "service due soon"],
       [rows.reduce((t, v) => t + v.openDefects, 0), "open defects"]].map(x => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join("");
     $("#fleetTable").innerHTML = `<thead><tr><th>Site</th><th>Matrícula</th><th>Make</th><th>Service</th><th class="num">Latest km</th><th class="num">Next service km</th><th class="num">Km to go</th><th>Date limit</th><th>Last service</th><th>Last check</th><th class="num">Open defects</th></tr></thead><tbody>` +
-      rows.map(v => `<tr data-reg="${esc(v.reg)}"><td>${esc(v.site)}</td><td><b>${esc(v.reg)}</b></td><td>${esc(v.make)}</td>
+      rows.map((v, i) => `<tr data-reg="${esc(v.reg)}"${i && rows[i - 1].site !== v.site ? ' class="site-start"' : ""}><td>${esc(v.site)}</td><td><b>${esc(v.reg)}</b></td><td>${esc(v.make)}</td>
         <td><span class="pill p-${esc(v.status.split(" ")[0])}">${esc(v.status)}</span></td><td class="num">${fmt(v.latestKm)}</td>
         <td class="num">${fmt(v.nextKm)}</td><td class="num">${fmt(v.kmTo)}</td><td>${esc(v.nextDate)}</td><td>${esc(v.lastService)}</td>
         <td>${esc(v.lastCheck) || '<span class="muted">never</span>'}</td><td class="num">${v.openDefects || ""}</td></tr>`).join("") + "</tbody>";
