@@ -35,6 +35,12 @@ function doGet(e) {
     if (!controllerOk_(ss, p.ckey)) return json_({ ok: false, error: "bad controller key" });
     try { return json_(controllerData_(ss)); } catch (err) { return json_({ ok: false, error: String(err) }); }
   }
+  if (p.action === "accounts") {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    ensureAccounts_(ss);
+    if (!accountsOk_(ss, p.akey)) return json_({ ok: false, error: "bad accounts key" });
+    try { return json_(accountsData_(ss)); } catch (err) { return json_({ ok: false, error: String(err) }); }
+  }
   return json_({ ok: true, app: "vehicle-check", time: new Date().toISOString() });
 }
 
@@ -48,6 +54,14 @@ function doPost(e) {
     if (!body.id || !body.row || !body.row["Matrícula"]) return json_({ ok: false, error: "bad payload" });
     const lk = LockService.getScriptLock(); lk.waitLock(30000);
     try { return json_(saveWork_(ss, body)); } catch (err) { return json_({ ok: false, error: String(err) }); } finally { lk.releaseLock(); }
+  }
+  if (body.kind === "jobcost" || body.kind === "running") {   // accounts page
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!accountsOk_(ss, body.akey)) return json_({ ok: false, error: "bad accounts key" });
+    if (!body.id) return json_({ ok: false, error: "bad payload" });
+    const lk = LockService.getScriptLock(); lk.waitLock(30000);
+    try { return json_(body.kind === "jobcost" ? saveJobCost_(ss, body) : saveRunningCost_(ss, body)); }
+    catch (err) { return json_({ ok: false, error: String(err) }); } finally { lk.releaseLock(); }
   }
   if (!body.id || !body.sheet || !body.row || !SHEETS[body.sheet]) return json_({ ok: false, error: "bad payload" });
 
@@ -1004,4 +1018,172 @@ function folderByName_(name, prop) {
 function controllerOk_(ss, key) {
   const k = String(settings_(ss)["Controller key"] || "");
   return k && String(key || "") === k;
+}
+
+// ---------------------------------------------------------------- accounts page
+const RUNNING_HEADERS = ["Received", "Cost ID", "Date", "Matrícula", "Vehicle", "Site", "Category", "Description", "Amount",
+  "Litres", "Km", "Supplier", "Invoice no.", "Invoice", "Entered by", "Notes"];
+const RUNNING_CATEGORIES = ["Fuel", "Insurance", "Imposto", "Inspection", "Tyres", "Tolls", "Fines", "Other"];
+
+/** Adds the Accounts key to Settings and the Running Costs tab the first time the accounts page is used. */
+function ensureAccounts_(ss) {
+  const st = ss.getSheetByName("Settings");
+  if (st) {
+    const names = st.getLastRow() > 1 ? st.getRange(2, 1, st.getLastRow() - 1, 1).getValues().map(function (r) { return String(r[0]).trim(); }) : [];
+    if (names.indexOf("Accounts key") < 0) {
+      st.appendRow(["Accounts key", Utilities.getUuid().replace(/-/g, "").slice(0, 10),
+        "Typed once into the accounts page on the PC. Change it here to lock out old PCs."]);
+      st.getRange(st.getLastRow(), 3).setWrap(true).setFontColor("#5d6b7a");
+    }
+  }
+  if (!ss.getSheetByName("Running Costs")) {
+    const rc = newSheet_(ss, "Running Costs", RUNNING_HEADERS, "#7b5e00");
+    rc.getRange(2, RUNNING_HEADERS.indexOf("Category") + 1, 2000, 1)
+      .setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(RUNNING_CATEGORIES, false).build());
+  }
+}
+function accountsOk_(ss, key) {
+  const k = String(settings_(ss)["Accounts key"] || "");
+  return k && String(key || "") === k;
+}
+function isoDate_(d) { return d ? Utilities.formatDate(d, SpreadsheetApp.getActive().getSpreadsheetTimeZone(), "yyyy-MM-dd") : ""; }
+/** Pulls the URL out of a =HYPERLINK("url","text") formula. */
+function linkOf_(f) { const m = /HYPERLINK\("([^"]+)"/i.exec(String(f || "")); return m ? m[1] : ""; }
+/** Same as table_ but HYPERLINK formulas in the given columns come back as their URL. */
+function tableLinks_(ss, name, linkCols) {
+  const t = table_(ss, name);
+  if (!t.sh || !t.rows.length) return t;
+  linkCols.forEach(function (k) {
+    const c = t.h.indexOf(k); if (c < 0) return;
+    const f = t.sh.getRange(2, c + 1, t.rows.length, 1).getFormulas();
+    t.rows.forEach(function (r, i) { r[k] = linkOf_(f[i][0]); });
+  });
+  return t;
+}
+
+/** GET ?action=accounts&akey=… – everything the accounts page needs. */
+function accountsData_(ss) {
+  const set = settings_(ss);
+  const fleetRows = table_(ss, "Fleet").rows.filter(function (v) { return normReg_(v["Matrícula"]); });
+  const site = {}, make = {};
+  const fleet = fleetRows.map(function (v) {
+    const reg = prettyReg_(v["Matrícula"]); site[normReg_(reg)] = String(v["Site"] || "").trim(); make[normReg_(reg)] = v["Make"];
+    return { reg: reg, make: v["Make"], site: String(v["Site"] || "").trim(), active: String(v["Active"] || "Yes").toLowerCase() !== "no" };
+  });
+  const siteOf = function (reg, fallback) { return site[normReg_(reg)] || String(fallback || "").trim(); };
+  const n = function (x) { const v = num_(x); return v === null || v === undefined || isNaN(v) ? null : v; };
+
+  const jobs = [], linked = {};
+  tableLinks_(ss, "Work Log", ["Invoice"]).rows.forEach(function (w) {
+    if (!normReg_(w["Matrícula"])) return;
+    const id = String(w["Work ID"] || ""); linked[id] = 1;
+    const total = n(w["Total cost"]);
+    jobs.push({ id: id, date: isoDate_(asDate_(w["Date"])), reg: prettyReg_(w["Matrícula"]), make: w["Vehicle"] || make[normReg_(w["Matrícula"])] || "",
+      site: siteOf(w["Matrícula"], w["Site"]), type: w["Type"] || "", km: n(w["Km"]), workshop: w["Workshop"] || "",
+      work: String(w["Work done"] || ""), parts: String(w["Parts"] || ""), partsCost: n(w["Parts cost"]), labour: n(w["Labour cost"]),
+      other: n(w["Other cost"]), total: total, invNo: String(w["Invoice no."] || ""), invoice: w["Invoice"] || "",
+      enteredBy: w["Entered by"] || "", source: w["Source"] || "", costedBy: w["Costed by"] || "", notes: w["Notes"] || "",
+      needsCost: !total });
+  });
+  // service records from the supervisor app that have not been costed yet (no Work Log row)
+  const sr = table_(ss, "Service Records");
+  sr.rows.forEach(function (r) {
+    const sid = String(r["Submission ID"] || ""); if (!sid || !normReg_(r["Matrícula"]) || linked["SR-" + sid]) return;
+    const parts = sr.h.filter(function (k) { return r[k] === "✓" && !/–/.test(k); })
+      .map(function (k) { const pn = r[k + " – qty & part no."]; return k + (pn ? " (" + pn + ")" : ""); });
+    jobs.push({ id: "SR-" + sid, date: isoDate_(asDate_(r["Date"])), reg: prettyReg_(r["Matrícula"]), make: r["Vehicle"] || make[normReg_(r["Matrícula"])] || "",
+      site: siteOf(r["Matrícula"]), type: "Service", km: n(r["Km"]), workshop: r["Workshop / mechanic"] || "",
+      work: String(r["Remarks"] || ""), parts: parts.join("\n"), partsCost: null, labour: null, other: null, total: null,
+      invNo: "", invoice: "", enteredBy: r["Entered by"] || "", source: "Supervisor app", costedBy: "", notes: "", needsCost: true });
+  });
+  const running = tableLinks_(ss, "Running Costs", ["Invoice"]).rows.filter(function (c) { return normReg_(c["Matrícula"]); }).map(function (c) {
+    return { id: String(c["Cost ID"] || ""), date: isoDate_(asDate_(c["Date"])), reg: prettyReg_(c["Matrícula"]), make: c["Vehicle"] || make[normReg_(c["Matrícula"])] || "",
+      site: siteOf(c["Matrícula"], c["Site"]), category: c["Category"] || "Other", desc: c["Description"] || "", amount: n(c["Amount"]),
+      litres: n(c["Litres"]), km: n(c["Km"]), supplier: c["Supplier"] || "", invNo: String(c["Invoice no."] || ""), invoice: c["Invoice"] || "",
+      enteredBy: c["Entered by"] || "", notes: c["Notes"] || "" };
+  });
+  const suppliers = {}; running.forEach(function (c) { if (c.supplier) suppliers[c.supplier] = 1; });
+  const workshops = {}; jobs.forEach(function (j) { if (j.workshop) workshops[j.workshop] = 1; });
+  return { ok: true, fleet: fleet, jobs: jobs, running: running, categories: RUNNING_CATEGORIES, currency: set["Currency"],
+    suppliers: Object.keys(suppliers).sort(), workshops: Object.keys(workshops).sort() };
+}
+
+/** Saves an invoice file to Drive (Vehicle Invoices/<reg>/) and returns a HYPERLINK formula. */
+function saveInvoiceFile_(inv, date, reg, invNo) {
+  if (!inv || !inv.data) return "";
+  const root = folderByName_(INVOICE_FOLDER_NAME, "INVOICE_FOLDER_ID");
+  const it = root.getFoldersByName(reg), vf = it.hasNext() ? it.next() : root.createFolder(reg);
+  const ext = (inv.name || "").split(".").pop() || "pdf";
+  const file = vf.createFile(Utilities.newBlob(Utilities.base64Decode(inv.data), inv.mime || "application/pdf",
+    (date || "") + " " + reg + (invNo ? " inv " + invNo : "") + "." + ext));
+  return '=HYPERLINK("' + file.getUrl() + '","View invoice")';
+}
+/** Row number of the row whose <col> equals id (0 if none). */
+function findByCol_(sh, col, id) {
+  const h = headers_(sh), c = h.indexOf(col) + 1;
+  if (!c || sh.getLastRow() < 2) return 0;
+  const f = sh.getRange(2, c, sh.getLastRow() - 1, 1).createTextFinder(String(id)).matchEntireCell(true).findNext();
+  return f ? f.getRow() : 0;
+}
+function money_(v) { const x = Number(v); return v === "" || v === null || v === undefined || isNaN(x) ? "" : x; }
+
+/** POST {kind:"jobcost"} – costs for a workshop job (Work Log row, or a supervisor service record). */
+function saveJobCost_(ss, body) {
+  const wl = getFleetSheet_(ss, "Work Log", WORK_HEADERS), c = body.costs || {}, now = new Date();
+  const partsCost = money_(c.parts), labour = money_(c.labour), other = money_(c.other);
+  const total = (Number(partsCost) || 0) + (Number(labour) || 0) + (Number(other) || 0);
+  if (!total) return { ok: false, error: "Enter at least one cost." };
+  let r = findByCol_(wl, "Work ID", body.id);
+  let cur = r ? readRow_(wl, r) : null;
+  if (!r) {
+    if (!/^SR-/.test(body.id)) return { ok: false, error: "Job not found – press Refresh." };
+    const sid = body.id.slice(3), sr = getSheet_(ss, "Service Records"), sRow = findRow_(sr, sid);
+    if (!sRow) return { ok: false, error: "Service record not found – press Refresh." };
+    const s = readRow_(sr, sRow), h = headers_(sr);
+    const fr = table_(ss, "Fleet").rows.filter(function (f) { return normReg_(f["Matrícula"]) === normReg_(s["Matrícula"]); })[0];
+    const parts = h.filter(function (k) { return s[k] === "✓" && !/–/.test(k); })
+      .map(function (k) { const pn = s[k + " – qty & part no."]; return k + (pn ? " (" + pn + ")" : ""); });
+    appendRow_(wl, { "Received": now, "Work ID": body.id, "Date": s["Date"], "Matrícula": prettyReg_(s["Matrícula"]),
+      "Vehicle": fr ? fr["Make"] : (s["Vehicle"] || ""), "Site": fr ? String(fr["Site"] || "").trim() : "", "Type": "Service",
+      "Km": s["Km"] || "", "Workshop": s["Workshop / mechanic"] || "", "Work done": s["Remarks"] || "", "Parts": parts.join("\n"),
+      "Entered by": s["Entered by"] || "", "Source": "Supervisor app (service record " + sid + ")", "Notes": "" });
+    r = wl.getLastRow(); cur = readRow_(wl, r);
+  }
+  const reg = prettyReg_(cur["Matrícula"]);
+  const upd = { "Parts cost": partsCost, "Labour cost": labour, "Other cost": other, "Total cost": total,
+    "Costed by": body.by || "", "Costed on": now };
+  if (c.invNo !== undefined) upd["Invoice no."] = c.invNo;
+  if (c.workshop) upd["Workshop"] = c.workshop;
+  if (c.notes) upd["Notes"] = [cur["Notes"], "Accounts: " + c.notes].filter(Boolean).join("\n");
+  const inv = saveInvoiceFile_(body.invoice, isoDate_(asDate_(cur["Date"])), reg, c.invNo || cur["Invoice no."]);
+  if (inv) upd["Invoice"] = inv;
+  writeRow_(wl, r, upd);
+  const wh = headers_(wl);
+  ["Parts cost", "Labour cost", "Other cost", "Total cost", "Km"].forEach(function (k) { if (wh.indexOf(k) >= 0) wl.getRange(r, wh.indexOf(k) + 1).setNumberFormat("#,##0.##"); });
+  wl.getRange(r, 1, 1, wh.length).setVerticalAlignment("top");
+  return { ok: true, total: total, row: r };
+}
+
+/** POST {kind:"running"} – add, change or delete a running cost (fuel, insurance, tolls…). */
+function saveRunningCost_(ss, body) {
+  ensureAccounts_(ss);
+  const sh = ss.getSheetByName("Running Costs"), now = new Date();
+  const r = findByCol_(sh, "Cost ID", body.id);
+  if (body.del) { if (r) sh.deleteRow(r); return { ok: true, deleted: !!r }; }
+  const row = body.row || {};
+  if (!normReg_(row["Matrícula"]) || !row["Date"] || money_(row["Amount"]) === "") return { ok: false, error: "Vehicle, date and amount are needed." };
+  const fr = table_(ss, "Fleet").rows.filter(function (f) { return normReg_(f["Matrícula"]) === normReg_(row["Matrícula"]); })[0];
+  const reg = prettyReg_(row["Matrícula"]);
+  const o = { "Cost ID": body.id, "Date": row["Date"], "Matrícula": reg, "Vehicle": fr ? fr["Make"] : (row["Vehicle"] || ""),
+    "Site": fr ? String(fr["Site"] || "").trim() : (row["Site"] || ""), "Category": row["Category"] || "Other",
+    "Description": row["Description"] || "", "Amount": money_(row["Amount"]), "Litres": money_(row["Litres"]), "Km": money_(row["Km"]),
+    "Supplier": row["Supplier"] || "", "Invoice no.": row["Invoice no."] || "", "Entered by": row["Entered by"] || "", "Notes": row["Notes"] || "" };
+  const inv = saveInvoiceFile_(body.invoice, row["Date"], reg, row["Invoice no."]);
+  if (inv) o["Invoice"] = inv;
+  let at = r;
+  if (r) writeRow_(sh, r, o);
+  else { o["Received"] = now; if (!inv) o["Invoice"] = ""; appendRow_(sh, o); at = sh.getLastRow(); }
+  const h = headers_(sh);
+  ["Amount", "Litres", "Km"].forEach(function (k) { sh.getRange(at, h.indexOf(k) + 1).setNumberFormat("#,##0.##"); });
+  return { ok: true, row: at };
 }

@@ -1,0 +1,40 @@
+/* Accounts page – builds on ../controller/controller.css */
+.badge{display:inline-block;min-width:20px;padding:0 6px;border-radius:10px;background:#f0be6e;color:#3d2a00;font-size:12px;font-weight:700;margin-left:4px}
+.btn.slim{padding:7px 12px;font-size:14px;margin-left:10px}
+.btn.danger{background:var(--badbg);color:var(--bad)}
+h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:22px 0 6px}
+.period{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 18px}
+.period b{color:var(--navy);margin-right:6px}
+.period label{display:inline-flex;align-items:center;gap:6px;margin:0}
+.period input{display:inline-block;width:auto;margin:0}
+.period .q{background:#e6eef4;color:var(--navy);border:0;border-radius:16px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.period .q.on{background:var(--navy);color:#fff}
+.site-h{display:flex;align-items:center;gap:10px;margin:18px 0 6px;padding:8px 12px;background:#0b3d5c;color:#fff;border-radius:8px}
+.site-h b{font-size:15px;flex:1}.site-h span{font-size:13px;opacity:.9}
+.vrow{display:grid;grid-template-columns:130px 180px 1fr auto;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid #eef1f4}
+.vrow.need{background:#fff6e6}
+.vrow .cnt{font-size:13px;color:var(--muted)}
+.vrow.need .cnt{color:#8a5a00;font-weight:700}
+.jobs{margin:0 0 6px 24px;border-left:3px solid #f0be6e}
+.job{display:grid;grid-template-columns:110px 130px 1fr 170px auto;gap:10px;align-items:start;padding:8px 12px;border-bottom:1px solid #f3e6cc;background:#fffaf0;font-size:14px}
+.job small{color:var(--muted)}
+.job .w{white-space:pre-line}
+.costs td.num,.costs th.num{text-align:right;white-space:nowrap}
+.costs tr.tot td{font-weight:700;border-top:2px solid var(--navy);background:#f8f1e2}
+.costs tr.needrow td{background:#fff6e6}
+.costs td.zero{color:#b8c0c8}
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;background:#e6eef4;color:var(--navy)}
+.tag.Workshop{background:#e3f5ea;color:#1e8e4e}.tag.Fuel{background:#fff1d6;color:#8a5a00}
+.tag.need{background:#fdeaea;color:var(--bad)}
+dialog{border:0;border-radius:14px;padding:0;width:min(860px,94vw);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(11,42,64,.45)}
+dialog form{padding:18px 22px 6px}
+.jobinfo{background:#f4f6f8;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:14px;white-space:pre-line}
+.jobinfo b{color:var(--navy)}
+.actions .btn{margin-left:6px}
+.fuelOnly.off{opacity:.4}
+a.inv{white-space:nowrap}
+@media (max-width:760px){.vrow,.job{grid-template-columns:1fr 1fr}}
+.summary div.warnbox{background:#fff1d6}.summary div.warnbox b{color:#8a5a00}
+.datetext.ph{color:var(--muted)}
+.period .datebox{display:inline-block;min-width:150px}

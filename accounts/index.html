@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Fleet Accounts – LBH Vehicles</title>
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="stylesheet" href="../controller/controller.css">
+<link rel="stylesheet" href="accounts.css">
+</head>
+<body>
+<header class="top">
+  <img src="../icons/icon-192.png" alt="" class="logo">
+  <div class="brand"><strong>Fleet Accounts</strong><span>LBH Vehicles</span></div>
+  <nav id="tabs" class="hidden">
+    <button data-tab="needs" class="on">Needs costs <span id="needBadge" class="badge hidden"></span></button>
+    <button data-tab="vehicles">Vehicles</button>
+    <button data-tab="running">Add running cost</button>
+    <button data-tab="reports">Reports</button>
+  </nav>
+  <button id="reload" class="ghost hidden" title="Reload data from the Sheet">⟳ Refresh</button>
+</header>
+
+<main>
+  <section id="gate" class="card narrow hidden">
+    <h2>Connect this PC</h2>
+    <p>Type the <b>Accounts key</b>. It's on the <b>Settings</b> tab of the Vehicle Checks Google Sheet. You only need to do this once on this PC.</p>
+    <form id="gateForm"><input id="akey" autocomplete="off" placeholder="Accounts key" required> <button class="btn">Connect</button></form>
+    <p id="gateMsg" class="err"></p>
+  </section>
+
+  <div id="loading" class="card narrow">Loading costs…</div>
+
+  <!-- jobs waiting for costs -->
+  <section id="tab-needs" class="hidden">
+    <div class="card">
+      <div class="bar"><h2>Jobs waiting for costs</h2>
+        <label class="inline">Site <select id="needSite"></select></label>
+        <label class="inline"><input type="checkbox" id="needOnly" checked> Only vehicles with jobs to cost</label>
+        <button class="btn sec slim" id="needExport">⬇ Export to Excel</button>
+      </div>
+      <div id="needSummary" class="summary"></div>
+      <div id="needList"></div>
+      <p class="muted small">Every workshop job (controller page, supervisor app or imported service report) that has no total cost is listed here until its costs are entered.</p>
+    </div>
+  </section>
+
+  <!-- every vehicle by site with its costs -->
+  <section id="tab-vehicles" class="hidden">
+    <div class="card period" data-period></div>
+    <div class="card" id="vehListCard">
+      <div class="bar"><h2>Costs per vehicle</h2>
+        <label class="inline">Site <select id="vehSite"></select></label>
+      </div>
+      <div class="scroll"><table class="list costs" id="vehTable"></table></div>
+      <p class="muted small">Click a vehicle to see every cost on it.</p>
+    </div>
+    <div class="card hidden" id="vehDetailCard">
+      <div class="bar"><h2 id="vehTitle"></h2>
+        <button class="btn sec slim" id="vehBack">‹ All vehicles</button>
+        <button class="btn sec slim" id="vehAddRun">+ Running cost</button>
+        <button class="btn slim" id="vehExport">⬇ Export to Excel</button>
+      </div>
+      <div id="vehSummary" class="summary"></div>
+      <div class="scroll"><table class="list costs" id="vehLines"></table></div>
+    </div>
+  </section>
+
+  <!-- running costs -->
+  <section id="tab-running" class="hidden">
+    <form id="runForm" autocomplete="off" novalidate class="card">
+      <div class="bar"><h2 id="runTitle">Add a running cost</h2><button type="button" class="btn sec slim hidden" id="runCancel">Cancel edit</button></div>
+      <div class="grid g4">
+        <label class="span2">Vehicle *<select name="reg" required></select></label>
+        <label>Date *<input type="date" name="date" required></label>
+        <label>Category *<select name="category" required></select></label>
+      </div>
+      <div class="grid g4">
+        <label>Amount (<span class="cur"></span>) *<input type="number" name="amount" min="0" step="0.01" required></label>
+        <label class="fuelOnly">Litres<input type="number" name="litres" min="0" step="0.01"></label>
+        <label>Km on odometer<input type="number" name="km" min="0" step="1"></label>
+        <label>Supplier<input name="supplier" list="suppliers"></label>
+      </div>
+      <div class="grid g4">
+        <label class="span2">Description<input name="desc" placeholder="e.g. Annual insurance 2027, toll Maputo–Matola"></label>
+        <label>Invoice / receipt no.<input name="invNo"></label>
+        <label>Invoice / receipt (PDF or photo)<input type="file" name="invoice" accept="application/pdf,image/*"></label>
+      </div>
+      <div class="grid g4">
+        <label class="span2">Entered by *<input name="by" required></label>
+        <label class="span2">Notes<input name="notes"></label>
+      </div>
+      <datalist id="suppliers"></datalist>
+      <div class="actions">
+        <span id="runMsg" class="err"></span>
+        <button type="button" id="runDelete" class="btn danger hidden">Delete</button>
+        <button id="runSave" class="btn">Save running cost</button>
+      </div>
+    </form>
+    <div class="card">
+      <div class="bar"><h2>Latest running costs</h2></div>
+      <div class="scroll"><table class="list" id="runRecent"></table></div>
+    </div>
+  </section>
+
+  <!-- reports -->
+  <section id="tab-reports" class="hidden">
+    <div class="card period" data-period></div>
+    <div class="card">
+      <div class="bar"><h2>Report</h2>
+        <label class="inline">For <select id="repScope"></select></label>
+        <button class="btn slim" id="repExport">⬇ Export to Excel</button>
+      </div>
+      <div id="repSummary" class="summary"></div>
+      <h3>By category</h3><table class="list costs" id="repCat"></table>
+      <div id="repSiteBox"><h3>By site</h3><div class="scroll"><table class="list costs" id="repSite"></table></div></div>
+      <div id="repVehBox"><h3>By vehicle</h3><div class="scroll"><table class="list costs" id="repVeh"></table></div></div>
+      <h3>By month</h3><div class="scroll"><table class="list costs" id="repMonth"></table></div>
+      <p class="muted small" id="repNote"></p>
+    </div>
+  </section>
+</main>
+
+<!-- enter costs for a job -->
+<dialog id="jobDlg">
+  <form method="dialog" id="jobForm" autocomplete="off" novalidate>
+    <h2 id="jobTitle">Enter costs</h2>
+    <div id="jobInfo" class="jobinfo"></div>
+    <div class="grid g4">
+      <label>Parts (<span class="cur"></span>)<input type="number" name="parts" min="0" step="0.01"></label>
+      <label>Labour<input type="number" name="labour" min="0" step="0.01"></label>
+      <label>Other<input type="number" name="other" min="0" step="0.01"></label>
+      <label>Total<output id="jobTotal" class="out big">0</output></label>
+    </div>
+    <div class="grid g4">
+      <label class="span2">Workshop / supplier<input name="workshop" list="workshops"></label>
+      <label>Invoice no.<input name="invNo"></label>
+      <label>Invoice (PDF or photo)<input type="file" name="invoice" accept="application/pdf,image/*"></label>
+    </div>
+    <div class="grid g4">
+      <label class="span2">Entered by *<input name="by" required></label>
+      <label class="span2">Note for the record<input name="notes"></label>
+    </div>
+    <datalist id="workshops"></datalist>
+    <div class="actions">
+      <span id="jobMsg" class="err"></span>
+      <button type="button" class="btn sec" id="jobCancel">Cancel</button>
+      <button type="button" class="btn" id="jobSave">Save costs</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="../config.js"></script>
+<script src="xlsx-lite.js"></script>
+<script src="accounts.js"></script>
+</body>
+</html>
